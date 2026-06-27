@@ -292,6 +292,7 @@ async def _cmd_start(update, context):
         await update.message.reply_text(
             f"ILLIP AI connected! You are owner (ID: {user_id}).\n\n"
             "Commands:\n"
+            "/image <prompt> — generate image (free)\n"
             "/run <code>     — execute Python\n"
             "/search <query> — web search\n"
             "/calc <expr>    — calculator\n"
@@ -413,6 +414,35 @@ async def _cmd_search(update, context):
         await msg.edit_text(result[:4000])
 
 
+async def _cmd_image(update, context):
+    """Generate image via Pollinations.ai — free, no API key needed."""
+    if not _is_allowed(update.effective_user.id):
+        return
+    prompt = " ".join(context.args) if context.args else ""
+    if not prompt:
+        raw = update.message.text or ""
+        prompt = raw[len("/image"):].strip()
+    if not prompt:
+        await update.message.reply_text("Usage: /image <description>\nExample: /image a cat on the moon")
+        return
+
+    msg = await update.message.reply_text("🎨 Generating...")
+    import aiohttp, urllib.parse
+    encoded = urllib.parse.quote(prompt)
+    url = f"https://image.pollinations.ai/prompt/{encoded}?width=768&height=768&nologo=true"
+    try:
+        async with aiohttp.ClientSession() as s:
+            async with s.get(url, timeout=aiohttp.ClientTimeout(total=60)) as r:
+                if r.status != 200:
+                    await msg.edit_text(f"Image gen failed: {r.status}")
+                    return
+                img_bytes = await r.read()
+        await msg.delete()
+        await update.message.reply_photo(img_bytes, caption=f"🎨 {prompt[:200]}")
+    except Exception as e:
+        await msg.edit_text(f"Image error: {e}")
+
+
 async def _cmd_calc(update, context):
     """Calculator via calculator skill."""
     if not _is_allowed(update.effective_user.id):
@@ -520,12 +550,34 @@ async def _cmd_model(update, context):
         await update.message.reply_text(f"Switch error: {e}")
 
 
+def _is_gdrive_url(text: str) -> bool:
+    return any(d in text for d in ("docs.google.com", "drive.google.com"))
+
+
 async def _handle_text(update, context):
     if not _is_allowed(update.effective_user.id):
         await update.message.reply_text("Access denied.")
         return
     text = update.message.text.strip()
     if not text:
+        return
+
+    # Google Drive URL → ingest into memory
+    if _is_gdrive_url(text):
+        msg = await update.message.reply_text("📄 Reading file from Google Drive...")
+        try:
+            from app.services.gdrive_rag import ingest_url
+            result = await ingest_url(text, project_id="default")
+            if result["success"]:
+                await msg.edit_text(
+                    f"✅ Ingested {result['chunks']} chunks into memory.\n"
+                    f"Preview: {result['preview'][:200]}\n\n"
+                    "Now ask me anything about this document!"
+                )
+            else:
+                await msg.edit_text(f"❌ {result['preview']}")
+        except Exception as e:
+            await msg.edit_text(f"Drive ingest error: {e}")
         return
 
     chat_id = update.effective_chat.id
@@ -679,6 +731,7 @@ async def start_bot(token: str) -> None:
     _app.add_handler(CommandHandler("run",     _cmd_run))
     _app.add_handler(CommandHandler("search",  _cmd_search))
     _app.add_handler(CommandHandler("calc",    _cmd_calc))
+    _app.add_handler(CommandHandler("image",   _cmd_image))
     _app.add_handler(CommandHandler("agent",   _cmd_agent))
     _app.add_handler(CommandHandler("model",   _cmd_model))
     _app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, _handle_text))

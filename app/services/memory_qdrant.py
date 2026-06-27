@@ -251,6 +251,14 @@ async def store_memory(
                 None, _qdrant_store_sync, text, project_id, category, embedding
             )
 
+    # 3. Fire-and-forget Notion sync (if NOTION_API_KEY + NOTION_DB_ID set)
+    try:
+        from app.services.notion_sync import sync_memory as _notion_sync, is_enabled as _notion_ok
+        if _notion_ok():
+            asyncio.create_task(_notion_sync(text, project_id, category))
+    except Exception:
+        pass
+
     return True
 
 
