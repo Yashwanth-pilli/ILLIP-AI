@@ -2,47 +2,117 @@
 Search service — free, no API key, works from India.
 
 Pipeline:
-  1. Local SearXNG   — if running via Docker (best, most comprehensive)
-  2. DDG Instant Answer API — free factual answers, no key
-  3. Wikipedia Search — free, authoritative, global
-  4. LLM fallback    — answers from training knowledge
+  1. Local SearXNG    — if running via Docker (best quality)
+  2. Public SearXNG   — public instances, no setup needed, always available
+  3. Brave Search     — if BRAVE_API_KEY set (high quality, 2000 free/month)
+  4. DDG full search  — installed library, no key
+  5. Wikipedia + DDG  — final fallback
 
-To enable full web search (best option, one command):
+To run local SearXNG (optional, better privacy):
   docker run -d -p 8888:8080 --name searxng searxng/searxng
 """
 
 import asyncio
+import os
 import re
 import urllib.parse
 from typing import List, Dict, Any, Optional
 import httpx
 from app.utils import logger
 
+# Public SearXNG instances — tried in order, first success wins
+_PUBLIC_SEARXNG = [
+    "https://searx.be",
+    "https://search.inetol.net",
+    "https://searx.tiekoetter.com",
+    "https://searx.prvcy.eu",
+    "https://searx.fmac.xyz",
+]
 
-async def _local_searxng(query: str, max_results: int) -> List[Dict[str, str]]:
-    """Local SearXNG — fastest, most comprehensive. Needs Docker."""
-    from app.config import settings
-    url = getattr(settings, "searxng_url", "http://localhost:8888")
+
+async def _query_searxng(base_url: str, query: str, max_results: int,
+                          timeout: int = 5) -> List[Dict[str, str]]:
+    """Query any SearXNG instance (local or public)."""
     try:
-        async with httpx.AsyncClient(timeout=4) as client:
+        async with httpx.AsyncClient(timeout=timeout, follow_redirects=True) as client:
             r = await client.get(
-                f"{url}/search",
+                f"{base_url}/search",
                 params={"q": query, "format": "json", "categories": "general"},
-                headers={"Accept": "application/json"},
+                headers={"Accept": "application/json", "User-Agent": "ILLIP-AI/3.1"},
             )
             if r.status_code == 200:
                 data = r.json()
                 results = [
-                    {"title": x.get("title", ""), "url": x.get("url", ""), "snippet": x.get("content", "")}
+                    {"title": x.get("title", ""), "url": x.get("url", ""),
+                     "snippet": x.get("content", "")}
                     for x in data.get("results", [])[:max_results]
                     if x.get("title")
                 ]
-                if results:
-                    logger.info(f"Local SearXNG: {len(results)} results")
-                    return results
+                return results
     except Exception:
         pass
     return []
+
+
+async def _local_searxng(query: str, max_results: int) -> List[Dict[str, str]]:
+    """Local SearXNG — fastest, most private. Needs Docker."""
+    from app.config import settings
+    url = getattr(settings, "searxng_url", "http://localhost:8888")
+    results = await _query_searxng(url, query, max_results, timeout=4)
+    if results:
+        logger.info(f"Local SearXNG: {len(results)} results")
+    return results
+
+
+async def _public_searxng(query: str, max_results: int) -> List[Dict[str, str]]:
+    """Try public SearXNG instances — no setup, always available."""
+    # Try all instances concurrently, return first success
+    tasks = [
+        asyncio.create_task(_query_searxng(url, query, max_results, timeout=5))
+        for url in _PUBLIC_SEARXNG
+    ]
+    for coro in asyncio.as_completed(tasks):
+        try:
+            results = await coro
+            if results:
+                # Cancel remaining
+                for t in tasks:
+                    t.cancel()
+                logger.info(f"Public SearXNG: {len(results)} results")
+                return results
+        except Exception:
+            continue
+    return []
+
+
+async def _brave_search(query: str, max_results: int) -> List[Dict[str, str]]:
+    """Brave Search API — 2000 free searches/month, high quality."""
+    key = os.environ.get("BRAVE_API_KEY", "").strip()
+    if not key:
+        return []
+    try:
+        async with httpx.AsyncClient(timeout=6) as client:
+            r = await client.get(
+                "https://api.search.brave.com/res/v1/web/search",
+                params={"q": query, "count": max_results, "search_lang": "en"},
+                headers={"Accept": "application/json", "X-Subscription-Token": key},
+            )
+            if r.status_code != 200:
+                return []
+            data    = r.json()
+            results = []
+            for item in data.get("web", {}).get("results", [])[:max_results]:
+                results.append({
+                    "title":   item.get("title", ""),
+                    "url":     item.get("url", ""),
+                    "snippet": item.get("description", ""),
+                })
+            if results:
+                logger.info(f"Brave Search: {len(results)} results")
+            return results
+    except Exception as e:
+        logger.debug(f"Brave search failed: {e}")
+        return []
 
 
 async def _ddg_instant(query: str, max_results: int) -> List[Dict[str, str]]:
@@ -161,26 +231,36 @@ async def _ddg_full_search(query: str, max_results: int) -> List[Dict[str, str]]
 
 async def web_search(query: str, max_results: int = 5) -> List[Dict[str, str]]:
     """
-    Free search — no API key, works globally.
-    Priority: SearXNG (Docker) → DDG full search → Wikipedia + DDG instant
+    Free search — works globally, no API key required.
+    Priority: Local SearXNG → Public SearXNG → Brave → DDG full → Wikipedia + DDG instant
     """
-    # 1. Local SearXNG (best — run: docker run -d -p 8888:8080 searxng/searxng)
+    # 1. Local SearXNG (Docker, optional — best privacy)
     results = await _local_searxng(query, max_results)
     if results:
         return results
 
-    # 2. DDG full web search (installed library, no API key needed)
+    # 2. Public SearXNG — concurrent race, first success wins (no setup needed)
+    results = await _public_searxng(query, max_results)
+    if results:
+        return results
+
+    # 3. Brave Search (if BRAVE_API_KEY set — 2000 free/month)
+    results = await _brave_search(query, max_results)
+    if results:
+        return results
+
+    # 4. DDG full web search
     results = await _ddg_full_search(query, max_results)
     if results:
         return results
 
-    # 3. Wikipedia + DDG instant fallback
+    # 5. Wikipedia + DDG instant (final fallback)
     wiki_task = asyncio.create_task(_wikipedia_search(query, max_results))
     ddg_task  = asyncio.create_task(_ddg_instant(query, max_results))
     wiki_res, ddg_res = await asyncio.gather(wiki_task, ddg_task)
 
     seen_urls = {r["url"] for r in wiki_res}
-    merged = list(wiki_res)
+    merged    = list(wiki_res)
     for r in ddg_res:
         if r["url"] not in seen_urls and len(merged) < max_results:
             merged.append(r)
