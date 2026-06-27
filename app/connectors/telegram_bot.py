@@ -491,6 +491,50 @@ async def _cmd_memories(update, context):
         await update.message.reply_text(summary[:4000])
 
 
+async def _cmd_kg(update, context):
+    """/kg <entity> — show knowledge graph connections for an entity."""
+    if not _is_allowed(update.effective_user.id):
+        return
+    query = " ".join(context.args) if context.args else ""
+    if not query:
+        raw = update.message.text or ""
+        query = raw[len("/kg"):].strip()
+
+    from app.services.knowledge_graph import stats, get_neighbors, search_nodes
+
+    if not query or query == "stats":
+        s = stats()
+        await update.message.reply_text(
+            f"🧠 Knowledge Graph\nNodes: {s['nodes']}\nEdges: {s['edges']}\n\n"
+            "Usage: /kg <entity name>"
+        )
+        return
+
+    result = get_neighbors(query, depth=2)
+    if not result["center"]:
+        # Try fuzzy
+        hits = search_nodes(query, limit=5)
+        if not hits:
+            await update.message.reply_text(f"No entity found: '{query}'")
+            return
+        names = "\n".join(f"• {h['name']} ({h['type']})" for h in hits)
+        await update.message.reply_text(f"Did you mean:\n{names}\n\nTry /kg <exact name>")
+        return
+
+    node_map = {n["id"]: n for n in result["nodes"]}
+    center   = result["center"]
+    lines    = [f"🔗 *{center['name']}* ({center['type']})\n"]
+    for e in result["edges"][:15]:
+        fn = node_map.get(e["from_id"], {}).get("name", e["from_id"])
+        tn = node_map.get(e["to_id"],   {}).get("name", e["to_id"])
+        lines.append(f"  {fn} —[{e['relation']}]→ {tn}")
+    lines.append(f"\nTotal: {len(result['nodes'])} nodes, {len(result['edges'])} edges")
+    try:
+        await update.message.reply_text("\n".join(lines)[:4000], parse_mode="Markdown")
+    except Exception:
+        await update.message.reply_text("\n".join(lines)[:4000])
+
+
 async def _cmd_image(update, context):
     """Generate image via Pollinations.ai — free, no API key needed."""
     if not _is_allowed(update.effective_user.id):
@@ -809,6 +853,7 @@ async def start_bot(token: str) -> None:
     _app.add_handler(CommandHandler("search",  _cmd_search))
     _app.add_handler(CommandHandler("calc",    _cmd_calc))
     _app.add_handler(CommandHandler("image",    _cmd_image))
+    _app.add_handler(CommandHandler("kg",       _cmd_kg))
     _app.add_handler(CommandHandler("remember", _cmd_remember))
     _app.add_handler(CommandHandler("recall",   _cmd_recall))
     _app.add_handler(CommandHandler("memories", _cmd_memories))

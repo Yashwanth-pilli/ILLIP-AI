@@ -48,6 +48,15 @@ async def _ball_extract(user_msg: str, assistant_msg: str) -> None:
         logger.debug(f"Memory Ball extract (non-critical): {e}")
 
 
+async def _kg_extract(user_msg: str, assistant_msg: str) -> None:
+    """Fire-and-forget: extract knowledge graph triples from conversation turn."""
+    try:
+        from app.services.knowledge_graph import auto_extract
+        await auto_extract(user_msg, assistant_msg)
+    except Exception as e:
+        logger.debug(f"KG extract (non-critical): {e}")
+
+
 async def _learning_ingest(user_msg: str, assistant_msg: str) -> None:
     """Fire-and-forget: run chat exchange through swarm learning pipeline."""
     try:
@@ -172,6 +181,21 @@ async def stream_chat_message(request: ChatRequest):
     except Exception:
         pass
 
+    # Inject Knowledge Graph context for key entities mentioned in message
+    try:
+        from app.services.knowledge_graph import search_nodes, format_for_prompt as kg_fmt
+        loop = asyncio.get_event_loop()
+        # Find entities in message that exist in KG
+        kg_nodes = await loop.run_in_executor(None, search_nodes, request.message, 3)
+        if kg_nodes:
+            kg_ctx = await loop.run_in_executor(
+                None, kg_fmt, kg_nodes[0]["name"], 1
+            )
+            if kg_ctx:
+                memory_ctx = (memory_ctx + "\n\n" + kg_ctx).strip() if memory_ctx else kg_ctx
+    except Exception:
+        pass
+
     raw_history = chat_service._get_history(project_id)
     from app.services.chat_service import _load_system_prompt
     from app.services.router_service import SMALL as _small_model
@@ -271,9 +295,9 @@ async def stream_chat_message(request: ChatRequest):
             )
         )
         # Memory Ball: extract + store named structured memories from this turn
-        asyncio.create_task(
-            _ball_extract(request.message, full)
-        )
+        asyncio.create_task(_ball_extract(request.message, full))
+        # Knowledge Graph: extract entity triples from this turn
+        asyncio.create_task(_kg_extract(request.message, full))
         # Auto-feed into learning pipeline (observe -> clean -> label -> verify)
         asyncio.create_task(_learning_ingest(request.message, full))
         # Reflexion: evaluate quality async — doesn't block stream, logs + saves patterns
