@@ -62,6 +62,11 @@ async def lifespan(app: FastAPI):
     asyncio.create_task(get_bus().start())
     logger.info("Agent event bus started")
 
+    # Start scheduler (memory backup, health snapshots, KG cleanup)
+    from app.agents.scheduler_agent import get_scheduler
+    asyncio.create_task(get_scheduler().start())
+    logger.info("SchedulerAgent started")
+
     yield
 
     logger.info("ILLIP AI shutting down...")
@@ -102,6 +107,11 @@ app.add_middleware(
 
 # Include API routes
 app.include_router(api_router)
+
+# Serve generated images
+data_dir = settings.project_root / "data"
+data_dir.mkdir(exist_ok=True)
+app.mount("/data", StaticFiles(directory=str(data_dir)), name="data")
 
 # Serve frontend static files
 frontend_dir = settings.project_root / "frontend"

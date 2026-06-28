@@ -15,7 +15,7 @@ from pydantic import BaseModel
 from app.agents.browser_task_agent import get_browser_task_agent
 from app.utils import logger
 
-router = APIRouter(prefix="/api/browser", tags=["browser"])
+router = APIRouter(prefix="/browser", tags=["browser"])
 
 
 class BrowserTaskRequest(BaseModel):

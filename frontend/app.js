@@ -48,6 +48,14 @@ function init() {
     setInterval(updateAgentsList, HEALTH_CHECK_INTERVAL * 3);
     setInterval(updateHardwareLive, 5000);
     setInterval(updateModelsPanel, 60000);   // refresh model list every minute
+
+    // New panels
+    updateHealthPanel();
+    updateGovernancePanel();
+    updateSchedulerPanel();
+    setInterval(updateHealthPanel, 10000);
+    setInterval(updateGovernancePanel, 15000);
+    setInterval(updateSchedulerPanel, 30000);
 }
 
 // ── Chat ──────────────────────────────────────────────────────────────────────
@@ -1207,6 +1215,255 @@ function _appendBrowserStep(container, type, text) {
 
 function escapeHtml(text) {
     return text.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+}
+
+// ── Image Generation ─────────────────────────────────────────────────────────
+
+let _imgW = 512, _imgH = 512;
+
+function openImagePanel() {
+    document.getElementById('imagePanel').classList.remove('hidden');
+    loadImageGallery();
+}
+
+function closeImagePanel() {
+    document.getElementById('imagePanel').classList.add('hidden');
+}
+
+function setImageSize(btn, w, h) {
+    _imgW = w; _imgH = h;
+    document.querySelectorAll('.size-btn').forEach(b => b.classList.remove('active'));
+    btn.classList.add('active');
+}
+
+async function generateImage() {
+    const prompt = document.getElementById('imagePrompt').value.trim();
+    if (!prompt) return;
+    const btn = document.getElementById('imageGenRunBtn');
+    btn.disabled = true;
+    btn.textContent = '⏳ Generating...';
+
+    const result = document.getElementById('imageGenResult');
+    result.classList.add('hidden');
+
+    try {
+        const resp = await fetch(`${API_BASE_URL}/image/generate`, {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({
+                prompt,
+                negative_prompt: document.getElementById('imageNegPrompt').value,
+                width: _imgW,
+                height: _imgH,
+                steps: parseInt(document.getElementById('imageSteps').value) || 20,
+                backend: document.getElementById('imageBackend').value,
+            }),
+        });
+        const data = await resp.json();
+        if (data.ok && data.image_b64) {
+            document.getElementById('imageGenImg').src = `data:image/png;base64,${data.image_b64}`;
+            document.getElementById('imageGenMeta').textContent =
+                `${data.backend} · ${data.width}×${data.height} · ${data.duration_s}s`;
+            result.classList.remove('hidden');
+            loadImageGallery();
+        } else {
+            alert('Image generation failed:\n' + (data.error || 'Unknown error'));
+        }
+    } catch(e) {
+        alert('Error: ' + e.message);
+    } finally {
+        btn.disabled = false;
+        btn.textContent = '▶ Generate';
+    }
+}
+
+async function loadImageGallery() {
+    try {
+        const resp = await fetch(`${API_BASE_URL}/image/gallery?limit=12`);
+        const data = await resp.json();
+        const gallery = document.getElementById('imageGallery');
+        if (!data.images || data.images.length === 0) { gallery.innerHTML = ''; return; }
+        gallery.innerHTML = data.images.map(img =>
+            `<div class="gallery-thumb"><img src="${img.url}" alt="${img.name}" onclick="viewGalleryImage('${img.url}')" title="${img.name}"></div>`
+        ).join('');
+    } catch(e) {}
+}
+
+function viewGalleryImage(url) {
+    document.getElementById('imageGenImg').src = url;
+    document.getElementById('imageGenResult').classList.remove('hidden');
+}
+
+// ── Health Metrics ────────────────────────────────────────────────────────────
+
+async function updateHealthPanel() {
+    try {
+        const [curr, sched] = await Promise.all([
+            fetch(`${API_BASE_URL}/monitoring/current`).then(r => r.json()),
+            fetch(`${API_BASE_URL}/scheduler/jobs`).then(r => r.json()),
+        ]);
+
+        const setBar = (id, pctId, val) => {
+            const bar = document.getElementById(id);
+            const lbl = document.getElementById(pctId);
+            if (!bar || !lbl) return;
+            const pct = Math.min(100, val || 0);
+            bar.style.width = pct + '%';
+            bar.style.background = pct > 85 ? '#ef4444' : pct > 65 ? '#f59e0b' : '';
+            lbl.textContent = pct.toFixed(0) + '%';
+        };
+
+        if (curr.system) {
+            setBar('mCPU', 'mCPUPct', curr.system.cpu_pct);
+            setBar('mRAM', 'mRAMPct', curr.system.ram_pct);
+            setBar('mDisk', 'mDiskPct', curr.system.disk_pct);
+            const gpu = curr.system.gpu_util_pct || curr.system.gpu_pct;
+            setBar('mGPU', 'mGPUPct', gpu);
+        }
+
+        // Scheduler quick view in health panel
+        if (sched.jobs) {
+            const row = document.getElementById('healthJobsRow');
+            if (row) {
+                row.innerHTML = sched.jobs.map(j =>
+                    `<div class="health-job ${j.enabled ? '' : 'disabled'}">
+                        <span>${j.name}</span>
+                        <span class="job-next">${j.last_error ? '⚠' : '✓'} next ${formatSecs(j.next_run_in)}</span>
+                    </div>`
+                ).join('');
+            }
+        }
+    } catch(e) {}
+}
+
+function formatSecs(s) {
+    if (s < 60) return `${Math.round(s)}s`;
+    if (s < 3600) return `${Math.round(s/60)}m`;
+    return `${Math.round(s/3600)}h`;
+}
+
+// ── Governance Panel ──────────────────────────────────────────────────────────
+
+async function updateGovernancePanel() {
+    try {
+        const data = await fetch(`${API_BASE_URL}/governance/pending`).then(r => r.json());
+        const pending = data.pending || [];
+        const badge = document.getElementById('govPendingBadge');
+        const container = document.getElementById('govPending');
+        if (!badge || !container) return;
+
+        if (pending.length === 0) {
+            badge.classList.add('hidden');
+            container.innerHTML = '<p style="color:#64748b;font-size:12px">No pending approvals</p>';
+            return;
+        }
+
+        badge.textContent = pending.length;
+        badge.classList.remove('hidden');
+        container.innerHTML = pending.map(item => `
+            <div class="gov-item">
+                <div class="gov-desc">${escapeHtml(item.description || item.action || JSON.stringify(item))}</div>
+                <div class="gov-btns">
+                    <button class="gov-approve" onclick="govApprove('${item.id}')">Approve</button>
+                    <button class="gov-deny"    onclick="govDeny('${item.id}')">Deny</button>
+                </div>
+            </div>
+        `).join('');
+    } catch(e) {}
+}
+
+async function govApprove(id) {
+    try {
+        await fetch(`${API_BASE_URL}/governance/approve/${id}`, {method: 'POST'});
+        updateGovernancePanel();
+    } catch(e) {}
+}
+
+async function govDeny(id) {
+    try {
+        await fetch(`${API_BASE_URL}/governance/deny/${id}`, {method: 'POST'});
+        updateGovernancePanel();
+    } catch(e) {}
+}
+
+// ── Scheduler Panel ───────────────────────────────────────────────────────────
+
+async function updateSchedulerPanel() {
+    try {
+        const data = await fetch(`${API_BASE_URL}/scheduler/jobs`).then(r => r.json());
+        const container = document.getElementById('schedulerJobs');
+        if (!container) return;
+        const jobs = data.jobs || [];
+        if (jobs.length === 0) { container.innerHTML = '<p style="color:#64748b;font-size:12px">No jobs</p>'; return; }
+        container.innerHTML = jobs.map(j => `
+            <div class="sched-job">
+                <div class="sched-job-name ${j.enabled ? '' : 'disabled'}">${escapeHtml(j.name)}</div>
+                <div class="sched-job-meta">every ${formatSecs(j.interval_s)} · ran ${j.run_count}× ${j.last_error ? '⚠ '+escapeHtml(j.last_error.slice(0,30)) : ''}</div>
+                <div class="sched-btns">
+                    <button onclick="schedRunNow('${j.id}')" class="sched-run-btn" title="Run now">▶</button>
+                    <button onclick="schedToggle('${j.id}', ${!j.enabled})" class="sched-toggle-btn">${j.enabled ? 'Pause' : 'Resume'}</button>
+                </div>
+            </div>
+        `).join('');
+    } catch(e) {}
+}
+
+async function schedRunNow(id) {
+    try {
+        await fetch(`${API_BASE_URL}/scheduler/jobs/${id}/run`, {method: 'POST'});
+        setTimeout(updateSchedulerPanel, 1000);
+    } catch(e) {}
+}
+
+async function schedToggle(id, enable) {
+    const ep = enable ? 'enable' : 'disable';
+    try {
+        await fetch(`${API_BASE_URL}/scheduler/jobs/${id}/${ep}`, {method: 'POST'});
+        updateSchedulerPanel();
+    } catch(e) {}
+}
+
+// ── Skills Install ────────────────────────────────────────────────────────────
+
+function showInstallSkillDialog() {
+    document.getElementById('installSkillDialog').classList.remove('hidden');
+    document.getElementById('installSkillUrl').value = '';
+    document.getElementById('installSkillStatus').textContent = '';
+}
+
+function closeInstallSkillDialog() {
+    document.getElementById('installSkillDialog').classList.add('hidden');
+}
+
+async function installSkillFromUrl() {
+    const url = document.getElementById('installSkillUrl').value.trim();
+    if (!url) return;
+    const status = document.getElementById('installSkillStatus');
+    const btn = document.getElementById('installSkillBtn');
+    btn.disabled = true;
+    status.textContent = '⏳ Installing and scanning...';
+    status.style.color = '#64748b';
+    try {
+        const resp = await fetch(`${API_BASE_URL}/skills/install`, {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({url}),
+        });
+        const data = await resp.json();
+        if (data.installed || data.success) {
+            status.textContent = '✅ Installed! ' + (data.name || '');
+            status.style.color = '#22c55e';
+            setTimeout(() => { closeInstallSkillDialog(); updateSkillsPanel(); }, 1500);
+        } else {
+            status.textContent = '❌ ' + (data.error || 'Install failed');
+            status.style.color = '#ef4444';
+        }
+    } catch(e) {
+        status.textContent = '❌ ' + e.message;
+        status.style.color = '#ef4444';
+    } finally {
+        btn.disabled = false;
+    }
 }
 
 // ── Boot ──────────────────────────────────────────────────────────────────────

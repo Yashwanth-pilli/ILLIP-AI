@@ -17,7 +17,7 @@ from app.agents.research_agent import get_research_agent
 from app.agents.pool import get_pool
 from app.utils import logger
 
-router = APIRouter(prefix="/api/research", tags=["research"])
+router = APIRouter(prefix="/research", tags=["research"])
 
 
 class ResearchRequest(BaseModel):

@@ -73,6 +73,7 @@
                             <button type="submit" class="send-button" id="sendBtn">Send</button>
                             <button type="button" class="research-btn" id="researchBtn" onclick="startResearch()" title="Deep Research — searches web, reads pages, synthesizes answer">&#128269; Research</button>
                             <button type="button" class="browser-btn" id="browserBtn" onclick="openBrowserPanel()" title="Browser Agent — AI controls browser to complete tasks">&#127760; Browser</button>
+                            <button type="button" class="image-gen-btn" id="imageGenBtn" onclick="openImagePanel()" title="Generate images with AI">&#127912; Image</button>
                         </form>
                         <div id="voiceStatus" class="voice-status hidden"></div>
 
@@ -117,7 +118,39 @@
                             </div>
                             <div id="browserResult" class="browser-result hidden"></div>
                         </div>
+
+                        <!-- Image Generation panel -->
+                        <div id="imagePanel" class="image-panel hidden">
+                            <div class="image-panel-header">
+                                <span>&#127912; Image Generation</span>
+                                <select id="imageBackend" class="img-select" title="Backend">
+                                    <option value="auto">Auto</option>
+                                    <option value="a1111">A1111</option>
+                                    <option value="diffusers">Diffusers</option>
+                                    <option value="together">Together AI</option>
+                                </select>
+                                <button onclick="closeImagePanel()" class="research-close">&#10005;</button>
+                            </div>
+                            <div class="image-gen-form">
+                                <textarea id="imagePrompt" placeholder="Describe the image..." class="image-prompt-field" rows="2"></textarea>
+                                <input type="text" id="imageNegPrompt" placeholder="Negative prompt (optional)" class="image-neg-field">
+                                <div class="image-size-row">
+                                    <label>Size:</label>
+                                    <button class="size-btn active" data-w="512" data-h="512" onclick="setImageSize(this,512,512)">512×512</button>
+                                    <button class="size-btn" data-w="768" data-h="512" onclick="setImageSize(this,768,512)">768×512</button>
+                                    <button class="size-btn" data-w="1024" data-h="1024" onclick="setImageSize(this,1024,1024)">1024×1024</button>
+                                    <label>Steps: <input type="number" id="imageSteps" value="20" min="4" max="50" class="steps-input"></label>
+                                    <button onclick="generateImage()" id="imageGenRunBtn" class="browser-run-btn">&#9654; Generate</button>
+                                </div>
+                            </div>
+                            <div id="imageGenResult" class="image-gen-result hidden">
+                                <img id="imageGenImg" src="" alt="Generated image" class="gen-img">
+                                <div id="imageGenMeta" class="gen-meta"></div>
+                            </div>
+                            <div id="imageGallery" class="image-gallery"></div>
+                        </div>
                     </div>
+                </div>
                 </div>
             </section>
 
@@ -138,7 +171,10 @@
                 </div>
 
                 <div class="panel skills-panel">
-                    <h3>Skills</h3>
+                    <div class="panel-header">
+                        <h3>Skills</h3>
+                        <button class="panel-add-btn" onclick="showInstallSkillDialog()" title="Install skill from URL">&#8595; Install</button>
+                    </div>
                     <div id="skillsList" class="status-content"><p>Loading...</p></div>
                 </div>
 
@@ -153,6 +189,27 @@
                         <button class="panel-add-btn" onclick="showPluginDialog()" title="Add connector">＋</button>
                     </div>
                     <div id="pluginsList" class="status-content"><p>Loading...</p></div>
+                </div>
+
+                <div class="panel health-panel">
+                    <h3>Health <span id="healthRefreshDot" class="live-dot">&#9679;</span></h3>
+                    <div id="healthMetrics" class="status-content">
+                        <div class="metric-row"><span>CPU</span><div class="metric-bar-wrap"><div id="mCPU" class="metric-bar"></div></div><span id="mCPUPct">—</span></div>
+                        <div class="metric-row"><span>RAM</span><div class="metric-bar-wrap"><div id="mRAM" class="metric-bar"></div></div><span id="mRAMPct">—</span></div>
+                        <div class="metric-row"><span>GPU</span><div class="metric-bar-wrap"><div id="mGPU" class="metric-bar gpu"></div></div><span id="mGPUPct">—</span></div>
+                        <div class="metric-row"><span>Disk</span><div class="metric-bar-wrap"><div id="mDisk" class="metric-bar disk"></div></div><span id="mDiskPct">—</span></div>
+                        <div id="healthJobsRow" class="health-jobs"></div>
+                    </div>
+                </div>
+
+                <div class="panel governance-panel">
+                    <h3>Governance <span id="govPendingBadge" class="badge hidden">0</span></h3>
+                    <div id="govPending" class="status-content"><p style="color:#64748b;font-size:12px">No pending approvals</p></div>
+                </div>
+
+                <div class="panel scheduler-panel">
+                    <h3>Scheduler</h3>
+                    <div id="schedulerJobs" class="status-content"><p>Loading...</p></div>
                 </div>
 
                 <div class="panel stats-panel">
@@ -179,6 +236,20 @@
             <div class="dialog-btns">
                 <button onclick="savePlugin()" class="btn-primary">Save & Activate</button>
                 <button onclick="closePluginDialog()" class="btn-secondary">Cancel</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Install skill dialog -->
+    <div id="installSkillDialog" class="dialog-overlay hidden">
+        <div class="dialog">
+            <h3>Install Skill / Plugin</h3>
+            <p style="font-size:12px;color:#64748b;margin-bottom:12px">Paste a GitHub URL or raw Python file URL. Code is scanned before install.</p>
+            <input type="text" id="installSkillUrl" class="dialog-input" placeholder="https://github.com/user/repo or raw URL...">
+            <div id="installSkillStatus" style="font-size:12px;margin-top:8px;min-height:20px"></div>
+            <div class="dialog-btns">
+                <button onclick="installSkillFromUrl()" class="btn-primary" id="installSkillBtn">Install</button>
+                <button onclick="closeInstallSkillDialog()" class="btn-secondary">Cancel</button>
             </div>
         </div>
     </div>

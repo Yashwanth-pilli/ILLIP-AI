@@ -1346,3 +1346,227 @@ sup.cite { color: #818cf8; font-size: 10px; font-weight: 700; cursor: default; }
 .research-step-plan       { color: #93c5fd; font-weight: 600; }
 .research-step-plan-item  { color: #60a5fa; padding-left: 12px; }
 .research-step-subtask    { color: #fbbf24; font-weight: 600; border-top: 1px solid #ffffff10; padding-top: 4px; margin-top: 2px; }
+
+/* ── Image Generation ─────────────────────────────────────────────────────── */
+.image-gen-btn {
+    background: linear-gradient(135deg, #7c3aed, #a855f7);
+    color: #fff;
+    border: none;
+    border-radius: 8px;
+    padding: 8px 14px;
+    font-size: 13px;
+    cursor: pointer;
+    font-weight: 600;
+    transition: opacity .15s;
+}
+.image-gen-btn:hover { opacity: .85; }
+
+.image-panel {
+    position: absolute;
+    bottom: 100%;
+    left: 0; right: 0;
+    background: #0f172a;
+    border: 1px solid #7c3aed40;
+    border-radius: 12px;
+    padding: 16px;
+    margin-bottom: 8px;
+    z-index: 100;
+    max-height: 520px;
+    overflow-y: auto;
+}
+.image-panel-header {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    font-weight: 600;
+    color: #c4b5fd;
+    margin-bottom: 12px;
+    font-size: 14px;
+}
+.image-panel-header .research-close { margin-left: auto; }
+.img-select {
+    background: #1e293b;
+    color: #c4b5fd;
+    border: 1px solid #7c3aed40;
+    border-radius: 6px;
+    padding: 4px 8px;
+    font-size: 12px;
+}
+.image-gen-form { display: flex; flex-direction: column; gap: 8px; }
+.image-prompt-field, .image-neg-field {
+    background: #1e293b;
+    border: 1px solid #7c3aed30;
+    border-radius: 8px;
+    color: #e2e8f0;
+    padding: 8px 12px;
+    font-size: 13px;
+    resize: none;
+}
+.image-size-row {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    flex-wrap: wrap;
+    font-size: 12px;
+    color: #94a3b8;
+}
+.size-btn {
+    background: #1e293b;
+    border: 1px solid #7c3aed30;
+    color: #94a3b8;
+    border-radius: 6px;
+    padding: 4px 10px;
+    font-size: 11px;
+    cursor: pointer;
+    transition: all .15s;
+}
+.size-btn.active, .size-btn:hover {
+    border-color: #7c3aed;
+    color: #c4b5fd;
+    background: #7c3aed20;
+}
+.steps-input {
+    width: 52px;
+    background: #1e293b;
+    border: 1px solid #7c3aed30;
+    border-radius: 6px;
+    color: #e2e8f0;
+    padding: 4px 6px;
+    font-size: 12px;
+}
+.image-gen-result { margin-top: 12px; text-align: center; }
+.gen-img {
+    max-width: 100%;
+    border-radius: 8px;
+    border: 1px solid #7c3aed40;
+    cursor: zoom-in;
+}
+.gen-meta { font-size: 11px; color: #64748b; margin-top: 6px; }
+.image-gallery {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+    margin-top: 12px;
+}
+.gallery-thumb {
+    width: 72px;
+    height: 72px;
+    overflow: hidden;
+    border-radius: 6px;
+    border: 1px solid #7c3aed30;
+    cursor: pointer;
+    transition: border-color .15s;
+}
+.gallery-thumb:hover { border-color: #a855f7; }
+.gallery-thumb img { width: 100%; height: 100%; object-fit: cover; }
+
+/* ── Health Panel ─────────────────────────────────────────────────────────── */
+.health-panel { }
+.live-dot { color: #22c55e; font-size: 8px; animation: pulse 2s infinite; }
+@keyframes pulse { 0%,100%{opacity:1} 50%{opacity:.3} }
+
+.metric-row {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin-bottom: 6px;
+    font-size: 12px;
+    color: #94a3b8;
+}
+.metric-row > span:first-child { width: 32px; flex-shrink: 0; }
+.metric-bar-wrap {
+    flex: 1;
+    height: 6px;
+    background: #1e293b;
+    border-radius: 3px;
+    overflow: hidden;
+}
+.metric-bar {
+    height: 100%;
+    width: 0%;
+    background: #667eea;
+    border-radius: 3px;
+    transition: width .5s, background .3s;
+}
+.metric-bar.gpu { background: #22c55e; }
+.metric-bar.disk { background: #f59e0b; }
+.metric-row > span:last-child { width: 36px; text-align: right; font-size: 11px; }
+
+.health-jobs { margin-top: 8px; }
+.health-job {
+    display: flex;
+    justify-content: space-between;
+    font-size: 11px;
+    color: #64748b;
+    padding: 2px 0;
+}
+.health-job.disabled { opacity: .4; }
+.job-next { color: #22c55e; }
+
+/* ── Governance Panel ─────────────────────────────────────────────────────── */
+.badge {
+    background: #ef4444;
+    color: #fff;
+    font-size: 10px;
+    font-weight: 700;
+    border-radius: 10px;
+    padding: 1px 6px;
+    margin-left: 4px;
+}
+.gov-item {
+    border: 1px solid #ef444440;
+    border-radius: 8px;
+    padding: 8px 10px;
+    margin-bottom: 6px;
+    font-size: 12px;
+}
+.gov-desc { color: #fca5a5; margin-bottom: 6px; line-height: 1.4; }
+.gov-btns { display: flex; gap: 6px; }
+.gov-approve {
+    background: #16a34a;
+    color: #fff;
+    border: none;
+    border-radius: 5px;
+    padding: 3px 10px;
+    font-size: 11px;
+    cursor: pointer;
+}
+.gov-deny {
+    background: #dc2626;
+    color: #fff;
+    border: none;
+    border-radius: 5px;
+    padding: 3px 10px;
+    font-size: 11px;
+    cursor: pointer;
+}
+
+/* ── Scheduler Panel ──────────────────────────────────────────────────────── */
+.sched-job {
+    border-bottom: 1px solid #ffffff08;
+    padding: 6px 0;
+    font-size: 12px;
+}
+.sched-job:last-child { border-bottom: none; }
+.sched-job-name { color: #93c5fd; font-weight: 600; }
+.sched-job-name.disabled { opacity: .4; }
+.sched-job-meta { color: #64748b; font-size: 11px; margin-top: 2px; }
+.sched-btns { display: flex; gap: 6px; margin-top: 4px; }
+.sched-run-btn {
+    background: #1e40af;
+    color: #fff;
+    border: none;
+    border-radius: 4px;
+    padding: 2px 8px;
+    font-size: 11px;
+    cursor: pointer;
+}
+.sched-toggle-btn {
+    background: #374151;
+    color: #d1d5db;
+    border: none;
+    border-radius: 4px;
+    padding: 2px 8px;
+    font-size: 11px;
+    cursor: pointer;
+}
