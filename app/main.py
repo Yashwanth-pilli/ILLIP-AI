@@ -57,6 +57,11 @@ async def lifespan(app: FastAPI):
     asyncio.create_task(registry.start_all())
     logger.info("Connector registry starting all configured connectors")
 
+    # Start agent event bus
+    from app.agents.bus import get_bus
+    asyncio.create_task(get_bus().start())
+    logger.info("Agent event bus started")
+
     yield
 
     logger.info("ILLIP AI shutting down...")

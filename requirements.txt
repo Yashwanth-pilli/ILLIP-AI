@@ -20,5 +20,8 @@ discord.py>=2.3.0          # Discord bot (DISCORD_BOT_TOKEN)
 slack_sdk>=3.26.0          # Slack bot (SLACK_BOT_TOKEN + SLACK_APP_TOKEN)
 aiosmtplib>=3.0.0          # Email SMTP send (EMAIL_ADDRESS + EMAIL_PASSWORD)
 
+trafilatura>=1.8.0             # web page text extraction for research agent
+
 # Optional — only needed locally (GPU/mic), skipped gracefully in cloud
 # faster-whisper>=1.0.0
+# playwright>=1.44.0           # JS-heavy page support: playwright install chromium

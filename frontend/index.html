@@ -71,8 +71,25 @@
                                 autocomplete="off"
                             >
                             <button type="submit" class="send-button" id="sendBtn">Send</button>
+                            <button type="button" class="research-btn" id="researchBtn" onclick="startResearch()" title="Deep Research — searches web, reads pages, synthesizes answer">&#128269; Research</button>
                         </form>
                         <div id="voiceStatus" class="voice-status hidden"></div>
+
+                        <!-- Research panel — live streaming results -->
+                        <div id="researchPanel" class="research-panel hidden">
+                            <div class="research-header">
+                                <span>Deep Research</span>
+                                <div class="research-depth-btns">
+                                    <button onclick="setDepth('quick')" id="depthQuick" class="depth-btn">Quick</button>
+                                    <button onclick="setDepth('standard')" id="depthStandard" class="depth-btn active">Standard</button>
+                                    <button onclick="setDepth('deep')" id="depthDeep" class="depth-btn">Deep</button>
+                                </div>
+                                <button onclick="closeResearch()" class="research-close">&#10005;</button>
+                            </div>
+                            <div id="researchSteps" class="research-steps"></div>
+                            <div id="researchAnswer" class="research-answer hidden"></div>
+                            <div id="researchSources" class="research-sources hidden"></div>
+                        </div>
                     </div>
                 </div>
             </section>

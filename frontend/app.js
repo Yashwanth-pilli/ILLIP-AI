@@ -918,6 +918,132 @@ function toggleAutoSpeak() {
     }
 }
 
+// ── Deep Research (Perplexity-style) ─────────────────────────────────────────
+
+let _researchDepth = 'standard';
+let _researchSSE = null;
+
+function setDepth(d) {
+    _researchDepth = d;
+    document.querySelectorAll('.depth-btn').forEach(b => b.classList.remove('active'));
+    const btn = document.getElementById('depth' + d.charAt(0).toUpperCase() + d.slice(1));
+    if (btn) btn.classList.add('active');
+}
+
+function startResearch() {
+    const query = document.getElementById('messageInput').value.trim();
+    if (!query) { alert('Type a question first, then click Research.'); return; }
+
+    const panel = document.getElementById('researchPanel');
+    const steps = document.getElementById('researchSteps');
+    const answer = document.getElementById('researchAnswer');
+    const sources = document.getElementById('researchSources');
+
+    panel.classList.remove('hidden');
+    steps.innerHTML = '';
+    answer.classList.add('hidden');
+    sources.classList.add('hidden');
+    answer.innerHTML = '';
+    sources.innerHTML = '';
+
+    document.getElementById('researchBtn').disabled = true;
+    document.getElementById('researchBtn').textContent = '⏳ Researching...';
+
+    if (_researchSSE) { _researchSSE.close(); }
+
+    const url = `/api/research/stream?query=${encodeURIComponent(query)}&depth=${_researchDepth}`;
+    _researchSSE = new EventSource(url);
+
+    _researchSSE.onmessage = (e) => {
+        const data = JSON.parse(e.data);
+        _handleResearchStep(data, steps, answer, sources);
+    };
+
+    _researchSSE.onerror = () => {
+        _researchSSE.close();
+        _researchSSE = null;
+        _appendStep(steps, 'error', '❌ Connection lost. Try again.');
+        document.getElementById('researchBtn').disabled = false;
+        document.getElementById('researchBtn').textContent = '🔍 Research';
+    };
+}
+
+function _handleResearchStep(data, steps, answer, sources) {
+    const icons = {
+        decompose: '🧠',
+        search: '🔍',
+        read: '📄',
+        synthesize: '⚡',
+        done: '✅',
+        error: '❌',
+    };
+    const icon = icons[data.type] || '•';
+
+    if (data.type === 'done') {
+        _researchSSE.close();
+        _researchSSE = null;
+
+        // Show answer
+        answer.classList.remove('hidden');
+        answer.innerHTML = `<div class="research-answer-text">${_mdToHtml(data.data.answer || '')}</div>`;
+
+        // Show sources
+        if (data.data.sources && data.data.sources.length > 0) {
+            sources.classList.remove('hidden');
+            sources.innerHTML = '<div class="sources-title">Sources</div>' +
+                data.data.sources.map((s, i) =>
+                    `<a href="${s.url}" target="_blank" class="source-chip">
+                        <span class="source-num">${i+1}</span>
+                        <span class="source-title">${s.title || s.url}</span>
+                    </a>`
+                ).join('');
+        }
+
+        document.getElementById('researchBtn').disabled = false;
+        document.getElementById('researchBtn').textContent = '🔍 Research';
+
+        _appendStep(steps, 'done', `${icon} Done — ${data.data.steps_taken || ''} steps`);
+        return;
+    }
+
+    if (data.type === 'error') {
+        _researchSSE && _researchSSE.close();
+        _researchSSE = null;
+        document.getElementById('researchBtn').disabled = false;
+        document.getElementById('researchBtn').textContent = '🔍 Research';
+    }
+
+    _appendStep(steps, data.type, `${icon} ${data.message}`);
+}
+
+function _appendStep(container, type, text) {
+    const el = document.createElement('div');
+    el.className = `research-step research-step-${type}`;
+    el.textContent = text;
+    container.appendChild(el);
+    container.scrollTop = container.scrollHeight;
+}
+
+function closeResearch() {
+    if (_researchSSE) { _researchSSE.close(); _researchSSE = null; }
+    document.getElementById('researchPanel').classList.add('hidden');
+    document.getElementById('researchBtn').disabled = false;
+    document.getElementById('researchBtn').textContent = '🔍 Research';
+}
+
+function _mdToHtml(text) {
+    // Minimal markdown → HTML for research answer
+    return text
+        .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+        .replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>')
+        .replace(/\*(.*?)\*/g, '<em>$1</em>')
+        .replace(/`([^`]+)`/g, '<code>$1</code>')
+        .replace(/\[(\d+)\]/g, '<sup class="cite">[$1]</sup>')
+        .replace(/\n\n/g, '</p><p>')
+        .replace(/\n/g, '<br>')
+        .replace(/^(.*)$/, '<p>$1</p>');
+}
+
 // ── Boot ──────────────────────────────────────────────────────────────────────
 
 if (document.readyState === 'loading') {
