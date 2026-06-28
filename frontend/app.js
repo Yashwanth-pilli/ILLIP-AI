@@ -1044,6 +1044,149 @@ function _mdToHtml(text) {
         .replace(/^(.*)$/, '<p>$1</p>');
 }
 
+// ── Browser Task Agent ───────────────────────────────────────────────────────
+
+let _browserSSE = null;
+let _browserHeaded = false;
+
+function openBrowserPanel() {
+    document.getElementById('browserPanel').classList.remove('hidden');
+    document.getElementById('researchPanel').classList.add('hidden');
+    // Pre-fill task from chat input
+    const q = document.getElementById('messageInput').value.trim();
+    if (q) document.getElementById('browserTaskInput').value = q;
+}
+
+function closeBrowserPanel() {
+    if (_browserSSE) { _browserSSE.close(); _browserSSE = null; }
+    document.getElementById('browserPanel').classList.add('hidden');
+    document.getElementById('browserRunBtn').disabled = false;
+    document.getElementById('browserRunBtn').textContent = '▶ Run';
+}
+
+function toggleBrowserMode(checkbox) {
+    _browserHeaded = checkbox.checked;
+}
+
+function runBrowserTask() {
+    const task = document.getElementById('browserTaskInput').value.trim();
+    if (!task) { alert('Enter a task first.'); return; }
+
+    const startUrl = document.getElementById('browserStartUrl').value.trim();
+    const user = document.getElementById('browserCredUser').value.trim();
+    const pass = document.getElementById('browserCredPass').value.trim();
+
+    const steps = document.getElementById('browserSteps');
+    const screen = document.getElementById('browserScreen');
+    const result = document.getElementById('browserResult');
+    steps.innerHTML = '';
+    screen.classList.add('hidden');
+    result.classList.add('hidden');
+
+    document.getElementById('browserRunBtn').disabled = true;
+    document.getElementById('browserRunBtn').textContent = '⏳ Running...';
+
+    if (_browserSSE) { _browserSSE.close(); }
+
+    let params = `task=${encodeURIComponent(task)}`;
+    if (startUrl) params += `&start_url=${encodeURIComponent(startUrl)}`;
+    params += `&headless=${_browserHeaded ? 'false' : 'true'}`;
+
+    // Pass credentials via custom header not supported in EventSource — use session storage workaround
+    // For now: POST task first to get session, then stream (or embed creds in URL — not ideal for prod)
+    // Simple approach: include creds in the task description if provided
+    let fullTask = task;
+    if (user && pass) {
+        fullTask += ` [credentials: username="${user}", password="${pass}"]`;
+        params = `task=${encodeURIComponent(fullTask)}`;
+        if (startUrl) params += `&start_url=${encodeURIComponent(startUrl)}`;
+        params += `&headless=${_browserHeaded ? 'false' : 'true'}`;
+    }
+
+    _browserSSE = new EventSource(`/api/browser/stream?${params}`);
+
+    _browserSSE.onmessage = (e) => {
+        const event = JSON.parse(e.data);
+        _handleBrowserEvent(event, steps, screen, result);
+    };
+
+    _browserSSE.onerror = () => {
+        _browserSSE.close(); _browserSSE = null;
+        _appendBrowserStep(steps, 'error', '❌ Connection lost');
+        document.getElementById('browserRunBtn').disabled = false;
+        document.getElementById('browserRunBtn').textContent = '▶ Run';
+    };
+}
+
+function _handleBrowserEvent(event, steps, screen, result) {
+    const type = event.type;
+    const data = event.data || {};
+
+    if (type === 'start') {
+        _appendBrowserStep(steps, 'start', `🤖 Starting: ${data.task}`);
+        return;
+    }
+
+    if (type === 'step') {
+        const icon = {
+            navigate: '🌐', click: '👆', type: '⌨️', scroll: '↕️',
+            press: '⌨️', wait: '⏳', extract: '📋', screenshot: '📸',
+            select: '🔽', error: '❌',
+        }[data.action] || '•';
+
+        let msg = `${icon} Step ${data.step}: ${data.action}`;
+        if (data.target) msg += ` → ${data.target}`;
+        if (data.result && data.result !== 'clicked' && data.result !== 'typed') msg += ` (${data.result.slice(0, 60)})`;
+        if (data.error) msg += ` ❌ ${data.error}`;
+
+        _appendBrowserStep(steps, data.error ? 'error' : 'step', msg);
+
+        // Show screenshot if provided
+        if (data.screenshot_b64) {
+            screen.classList.remove('hidden');
+            document.getElementById('browserScreenImg').src = `data:image/jpeg;base64,${data.screenshot_b64}`;
+        }
+        return;
+    }
+
+    if (type === 'done') {
+        _browserSSE.close(); _browserSSE = null;
+
+        _appendBrowserStep(steps, 'done', `✅ Done in ${data.steps_taken} steps`);
+        result.classList.remove('hidden');
+        result.innerHTML = `<div class="browser-result-text">${escapeHtml(data.result || '')}</div>`;
+
+        if (data.screenshot_b64) {
+            screen.classList.remove('hidden');
+            document.getElementById('browserScreenImg').src = `data:image/jpeg;base64,${data.screenshot_b64}`;
+        }
+
+        document.getElementById('browserRunBtn').disabled = false;
+        document.getElementById('browserRunBtn').textContent = '▶ Run';
+        return;
+    }
+
+    if (type === 'failed') {
+        _browserSSE.close(); _browserSSE = null;
+        _appendBrowserStep(steps, 'error', `❌ Failed: ${data.reason}`);
+        document.getElementById('browserRunBtn').disabled = false;
+        document.getElementById('browserRunBtn').textContent = '▶ Run';
+        return;
+    }
+}
+
+function _appendBrowserStep(container, type, text) {
+    const el = document.createElement('div');
+    el.className = `research-step research-step-${type === 'done' ? 'done' : type === 'error' ? 'error' : ''}`;
+    el.textContent = text;
+    container.appendChild(el);
+    container.scrollTop = container.scrollHeight;
+}
+
+function escapeHtml(text) {
+    return text.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+}
+
 // ── Boot ──────────────────────────────────────────────────────────────────────
 
 if (document.readyState === 'loading') {

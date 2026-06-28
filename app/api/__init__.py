@@ -26,6 +26,7 @@ from app.api.routes import (
     webhooks,
     integrations,
     research,
+    browser_tasks,
 )
 
 # n8n, whatsapp routes — import separately (may not exist yet)
@@ -68,6 +69,7 @@ api_router.include_router(storage.router)
 api_router.include_router(webhooks.router)
 api_router.include_router(integrations.router)
 api_router.include_router(research.router)
+api_router.include_router(browser_tasks.router)
 
 if _has_n8n:
     api_router.include_router(n8n_routes.router)

@@ -72,6 +72,7 @@
                             >
                             <button type="submit" class="send-button" id="sendBtn">Send</button>
                             <button type="button" class="research-btn" id="researchBtn" onclick="startResearch()" title="Deep Research — searches web, reads pages, synthesizes answer">&#128269; Research</button>
+                            <button type="button" class="browser-btn" id="browserBtn" onclick="openBrowserPanel()" title="Browser Agent — AI controls browser to complete tasks">&#127760; Browser</button>
                         </form>
                         <div id="voiceStatus" class="voice-status hidden"></div>
 
@@ -89,6 +90,32 @@
                             <div id="researchSteps" class="research-steps"></div>
                             <div id="researchAnswer" class="research-answer hidden"></div>
                             <div id="researchSources" class="research-sources hidden"></div>
+                        </div>
+
+                        <!-- Browser Task panel -->
+                        <div id="browserPanel" class="browser-panel hidden">
+                            <div class="browser-header">
+                                <span>&#127760; Browser Agent</span>
+                                <label class="browser-mode-toggle" title="Toggle headed/headless">
+                                    <input type="checkbox" id="browserHeaded" onchange="toggleBrowserMode(this)">
+                                    <span>Visible browser</span>
+                                </label>
+                                <button onclick="closeBrowserPanel()" class="research-close">&#10005;</button>
+                            </div>
+                            <div class="browser-task-input">
+                                <input type="text" id="browserTaskInput" placeholder="e.g. Log into Salesforce and create a new lead named John Smith..." class="browser-task-field">
+                                <input type="text" id="browserStartUrl" placeholder="Start URL (optional)" class="browser-url-field">
+                                <button onclick="runBrowserTask()" id="browserRunBtn" class="browser-run-btn">&#9654; Run</button>
+                            </div>
+                            <div class="browser-creds-row">
+                                <input type="text"     id="browserCredUser"  placeholder="Username / Email (optional)" class="cred-field">
+                                <input type="password" id="browserCredPass"  placeholder="Password (optional)" class="cred-field">
+                            </div>
+                            <div id="browserSteps"  class="research-steps browser-steps"></div>
+                            <div id="browserScreen" class="browser-screenshot hidden">
+                                <img id="browserScreenImg" src="" alt="Browser screenshot">
+                            </div>
+                            <div id="browserResult" class="browser-result hidden"></div>
                         </div>
                     </div>
                 </div>
