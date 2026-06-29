@@ -74,6 +74,7 @@
                             <button type="button" class="research-btn" id="researchBtn" onclick="startResearch()" title="Deep Research — searches web, reads pages, synthesizes answer">&#128269; Research</button>
                             <button type="button" class="browser-btn" id="browserBtn" onclick="openBrowserPanel()" title="Browser Agent — AI controls browser to complete tasks">&#127760; Browser</button>
                             <button type="button" class="image-gen-btn" id="imageGenBtn" onclick="openImagePanel()" title="Generate images with AI">&#127912; Image</button>
+                            <button type="button" class="image-gen-btn" id="videoGenBtn" onclick="openVideoPanel()" title="Generate videos with AI">&#127916; Video</button>
                         </form>
                         <div id="voiceStatus" class="voice-status hidden"></div>
 
@@ -149,6 +150,37 @@
                             </div>
                             <div id="imageGallery" class="image-gallery"></div>
                         </div>
+
+                        <!-- Video Generation panel -->
+                        <div id="videoPanel" class="image-panel hidden">
+                            <div class="image-panel-header">
+                                <span>&#127916; Video Generation</span>
+                                <select id="videoBackend" class="img-select" title="Backend">
+                                    <option value="auto">Auto</option>
+                                    <option value="framepack">FramePack</option>
+                                    <option value="cogvideox">CogVideoX</option>
+                                    <option value="animatediff">AnimateDiff</option>
+                                    <option value="replicate">Replicate</option>
+                                </select>
+                                <button onclick="closeVideoPanel()" class="research-close">&#10005;</button>
+                            </div>
+                            <div class="image-gen-form">
+                                <textarea id="videoPrompt" placeholder="Describe the video... e.g. 'A cat walking through a sunny garden'" class="image-prompt-field" rows="2"></textarea>
+                                <div class="image-size-row">
+                                    <label>Size:</label>
+                                    <button class="vsize-btn active" onclick="setVideoSize(this,512,320)">512×320</button>
+                                    <button class="vsize-btn" onclick="setVideoSize(this,768,432)">768×432</button>
+                                    <label>Frames: <input type="number" id="videoFrames" value="16" min="8" max="64" class="steps-input"></label>
+                                    <label>FPS: <input type="number" id="videoFps" value="8" min="4" max="24" class="steps-input" style="width:44px"></label>
+                                    <button onclick="generateVideo()" id="videoGenRunBtn" class="browser-run-btn">&#9654; Generate</button>
+                                </div>
+                            </div>
+                            <div id="videoGenResult" class="image-gen-result hidden">
+                                <video id="videoGenPlayer" controls style="max-width:100%;border-radius:8px"></video>
+                                <div id="videoGenMeta" class="gen-meta"></div>
+                            </div>
+                            <div id="videoGallery" class="image-gallery"></div>
+                        </div>
                     </div>
                 </div>
                 </div>
@@ -186,9 +218,22 @@
                 <div class="panel plugins-panel">
                     <div class="panel-header">
                         <h3>Plugins</h3>
+                        <button class="panel-add-btn" onclick="showMarketplace()" title="Browse marketplace">&#127748; Market</button>
                         <button class="panel-add-btn" onclick="showPluginDialog()" title="Add connector">＋</button>
                     </div>
                     <div id="pluginsList" class="status-content"><p>Loading...</p></div>
+                </div>
+
+                <!-- Plugin Marketplace modal -->
+                <div id="marketplaceModal" class="modal-overlay hidden" onclick="if(event.target===this)closeMarketplace()">
+                    <div class="modal-box" style="max-width:520px">
+                        <div class="modal-header">
+                            <h3>&#127748; Plugin Marketplace</h3>
+                            <button onclick="closeMarketplace()" class="research-close">&#10005;</button>
+                        </div>
+                        <p style="color:#94a3b8;font-size:12px;margin:0 0 12px">Click Install to add a plugin. Needs ILLIP running.</p>
+                        <div id="marketplaceList" class="marketplace-list"><p>Loading...</p></div>
+                    </div>
                 </div>
 
                 <div class="panel health-panel">

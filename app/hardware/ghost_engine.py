@@ -264,6 +264,10 @@ async def calculate_plan(
         return _cpu_only_plan(profile, hw, requested_ctx, warnings)
 
     avail_vram_gb = max(0.0, (hw.gpu_vram_gb or 0.0) - _VRAM_SAFETY_GB)
+    # Windows Shared GPU Memory: system RAM exposed as virtual VRAM by NVIDIA driver.
+    # Use 50% of it (slower than dedicated VRAM) as extra headroom for layer placement.
+    shared_vram_gb = getattr(hw, "gpu_shared_vram_gb", 0.0) * 0.5
+    avail_vram_effective = avail_vram_gb + shared_vram_gb
     avail_ram_gb  = max(0.0, (hw.ram_available_gb or 4.0) - _RAM_SAFETY_GB)
     safe_threads  = max(2, (hw.cpu_cores or 4) - 2)
 
@@ -291,7 +295,7 @@ async def calculate_plan(
         requested_ctx * profile.num_layers * kv_per_token_per_layer_bytes / 1e9
     )
 
-    # ── Strategy 1: Full GPU (model + KV fit in VRAM) ──
+    # ── Strategy 1: Full GPU (model + KV fit in dedicated VRAM) ──
     if profile.vram_needed_gb + kv_total_gb <= avail_vram_gb:
         strategy   = "full_gpu"
         gpu_layers = profile.num_layers
@@ -301,7 +305,7 @@ async def calculate_plan(
         context    = requested_ctx
         kv_offload = False
 
-    # ── Strategy 2: KV offload (model fits but KV cache doesn't) ──
+    # ── Strategy 2: KV offload (model fits in dedicated VRAM but KV doesn't) ──
     elif profile.vram_needed_gb <= avail_vram_gb:
         strategy   = "kv_offload"
         gpu_layers = profile.num_layers
@@ -323,11 +327,11 @@ async def calculate_plan(
         else:
             warnings.append("KV cache offloaded to CPU RAM. Slightly slower but model stays on GPU.")
 
-    # ── Strategy 3: Hybrid split (partial GPU, rest on CPU) ──
-    elif avail_vram_gb > 0.5:
+    # ── Strategy 3: Hybrid split — uses dedicated + shared VRAM if available ──
+    elif avail_vram_effective > 0.5:
         strategy        = "hybrid"
         vram_per_layer  = profile.vram_needed_gb / profile.num_layers
-        gpu_layers      = max(1, int(avail_vram_gb / vram_per_layer))
+        gpu_layers      = max(1, int(avail_vram_effective / vram_per_layer))
         cpu_layers      = profile.num_layers - gpu_layers
         vram_used       = gpu_layers * vram_per_layer
         ram_per_cpu_lay = vram_per_layer   # similar size
@@ -352,10 +356,16 @@ async def calculate_plan(
             context = requested_ctx
 
         gpu_pct = int(gpu_layers / profile.num_layers * 100)
-        warnings.append(
-            f"Hybrid: {gpu_pct}% layers on GPU, {100-gpu_pct}% on CPU. "
-            f"Expect {100 - gpu_pct}% speed reduction vs full GPU."
-        )
+        if shared_vram_gb > 0:
+            warnings.append(
+                f"Hybrid: {gpu_pct}% layers on GPU (using Windows shared VRAM), "
+                f"{100-gpu_pct}% on CPU. Shared VRAM is slower than dedicated."
+            )
+        else:
+            warnings.append(
+                f"Hybrid: {gpu_pct}% layers on GPU, {100-gpu_pct}% on CPU. "
+                f"Expect {100 - gpu_pct}% speed reduction vs full GPU."
+            )
 
     # ── Strategy 4: CPU only ──
     else:

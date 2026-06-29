@@ -1294,6 +1294,145 @@ function viewGalleryImage(url) {
     document.getElementById('imageGenResult').classList.remove('hidden');
 }
 
+// ── Video Generation ──────────────────────────────────────────────────────────
+
+let _vidW = 512, _vidH = 320;
+
+function openVideoPanel() {
+    document.getElementById('videoPanel').classList.remove('hidden');
+    loadVideoGallery();
+}
+
+function closeVideoPanel() {
+    document.getElementById('videoPanel').classList.add('hidden');
+}
+
+function setVideoSize(btn, w, h) {
+    _vidW = w; _vidH = h;
+    document.querySelectorAll('.vsize-btn').forEach(b => b.classList.remove('active'));
+    btn.classList.add('active');
+}
+
+async function generateVideo() {
+    const prompt = document.getElementById('videoPrompt').value.trim();
+    if (!prompt) return;
+    const btn = document.getElementById('videoGenRunBtn');
+    btn.disabled = true;
+    btn.textContent = '⏳ Generating...';
+    document.getElementById('videoGenResult').classList.add('hidden');
+
+    try {
+        const resp = await fetch(`${API_BASE_URL}/video/generate`, {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({
+                prompt,
+                num_frames: parseInt(document.getElementById('videoFrames').value) || 16,
+                fps: parseInt(document.getElementById('videoFps').value) || 8,
+                width: _vidW,
+                height: _vidH,
+                backend: document.getElementById('videoBackend').value,
+            }),
+        });
+        const data = await resp.json();
+        if (data.ok) {
+            const player = document.getElementById('videoGenPlayer');
+            if (data.video_b64) {
+                const mime = data.url && data.url.endsWith('.gif') ? 'image/gif' : 'video/mp4';
+                player.src = `data:${mime};base64,${data.video_b64}`;
+            } else if (data.url) {
+                player.src = data.url;
+            }
+            document.getElementById('videoGenMeta').textContent =
+                `${data.backend} · ${data.frames} frames · ${data.fps}fps · ${data.duration_s}s`;
+            document.getElementById('videoGenResult').classList.remove('hidden');
+            loadVideoGallery();
+        } else {
+            alert('Video generation failed:\n' + (data.error || 'Unknown error'));
+        }
+    } catch(e) {
+        alert('Error: ' + e.message);
+    } finally {
+        btn.disabled = false;
+        btn.textContent = '▶ Generate';
+    }
+}
+
+async function loadVideoGallery() {
+    try {
+        const resp = await fetch(`${API_BASE_URL}/video/gallery?limit=12`);
+        const data = await resp.json();
+        const gallery = document.getElementById('videoGallery');
+        if (!data.videos || data.videos.length === 0) { gallery.innerHTML = ''; return; }
+        gallery.innerHTML = data.videos.map(v =>
+            `<div class="gallery-thumb" onclick="viewGalleryVideo('${v.url}')" title="${v.name} (${v.size_mb}MB)" style="cursor:pointer;padding:6px;font-size:10px;text-align:center">&#127916; ${v.name}</div>`
+        ).join('');
+    } catch(e) {}
+}
+
+function viewGalleryVideo(url) {
+    document.getElementById('videoGenPlayer').src = url;
+    document.getElementById('videoGenResult').classList.remove('hidden');
+}
+
+// ── Plugin Marketplace ────────────────────────────────────────────────────────
+
+const _MARKETPLACE_PLUGINS = [
+    { name: "slack-notify", display: "Slack Notifier", desc: "Send messages to Slack channels", type: "http",
+      spec: { name: "slack-notify", display_name: "Slack Notifier", plugin_type: "http", url: "", headers: { "Content-Type": "application/json" }, method: "POST", body_template: '{"text": "{{message}}"}' } },
+    { name: "discord-webhook", display: "Discord Webhook", desc: "Post to Discord channels", type: "http",
+      spec: { name: "discord-webhook", display_name: "Discord Webhook", plugin_type: "http", url: "", headers: { "Content-Type": "application/json" }, method: "POST", body_template: '{"content": "{{message}}"}' } },
+    { name: "telegram-notify", display: "Telegram Bot", desc: "Send Telegram messages", type: "http",
+      spec: { name: "telegram-notify", display_name: "Telegram Notify", plugin_type: "http", url: "https://api.telegram.org/bot{{token}}/sendMessage", headers: {}, method: "POST", body_template: '{"chat_id": "{{chat_id}}", "text": "{{message}}"}' } },
+    { name: "github-issues", display: "GitHub Issues", desc: "Create GitHub issues via API", type: "http",
+      spec: { name: "github-issues", display_name: "GitHub Issues", plugin_type: "http", url: "https://api.github.com/repos/{{owner}}/{{repo}}/issues", headers: { "Authorization": "Bearer {{token}}", "Accept": "application/vnd.github.v3+json" }, method: "POST", body_template: '{"title": "{{title}}", "body": "{{body}}"}' } },
+    { name: "n8n-webhook", display: "n8n Webhook", desc: "Trigger n8n automation workflows", type: "http",
+      spec: { name: "n8n-webhook", display_name: "n8n Webhook", plugin_type: "http", url: "", headers: { "Content-Type": "application/json" }, method: "POST", body_template: '{"data": "{{message}}"}' } },
+    { name: "notion-log", display: "Notion Logger", desc: "Append entries to Notion database", type: "http",
+      spec: { name: "notion-log", display_name: "Notion Logger", plugin_type: "http", url: "https://api.notion.com/v1/pages", headers: { "Authorization": "Bearer {{token}}", "Notion-Version": "2022-06-28", "Content-Type": "application/json" }, method: "POST", body_template: '{"parent": {"database_id": "{{db_id}}"}, "properties": {"Name": {"title": [{"text": {"content": "{{message}}"}}]}}}' } },
+];
+
+async function showMarketplace() {
+    document.getElementById('marketplaceModal').classList.remove('hidden');
+    const list = document.getElementById('marketplaceList');
+    list.innerHTML = _MARKETPLACE_PLUGINS.map(p => `
+        <div class="marketplace-item">
+            <div>
+                <strong>${p.display}</strong>
+                <span class="plugin-type">${p.type}</span>
+                <p style="color:#94a3b8;font-size:11px;margin:2px 0 0">${p.desc}</p>
+            </div>
+            <button class="browser-run-btn" style="font-size:11px;padding:4px 10px" onclick="installMarketplacePlugin('${p.name}')">Install</button>
+        </div>
+    `).join('');
+}
+
+function closeMarketplace() {
+    document.getElementById('marketplaceModal').classList.add('hidden');
+}
+
+async function installMarketplacePlugin(name) {
+    const plugin = _MARKETPLACE_PLUGINS.find(p => p.name === name);
+    if (!plugin) return;
+    try {
+        const res = await fetch(`${API_BASE_URL}/plugins/`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(plugin.spec),
+        });
+        if (res.ok) {
+            alert(`"${plugin.display}" installed! Configure it in Plugins panel.`);
+            closeMarketplace();
+            await updatePluginsPanel();
+        } else {
+            const e = await res.json();
+            alert('Install failed: ' + (e.detail || 'Unknown error'));
+        }
+    } catch(e) {
+        alert('Error: ' + e.message);
+    }
+}
+
 // ── Health Metrics ────────────────────────────────────────────────────────────
 
 async function updateHealthPanel() {

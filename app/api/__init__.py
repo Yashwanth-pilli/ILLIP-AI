@@ -28,6 +28,7 @@ from app.api.routes import (
     research,
     browser_tasks,
     image_gen,
+    video_gen,
     scheduler,
 )
 
@@ -73,6 +74,7 @@ api_router.include_router(integrations.router)
 api_router.include_router(research.router)
 api_router.include_router(browser_tasks.router)
 api_router.include_router(image_gen.router)
+api_router.include_router(video_gen.router)
 api_router.include_router(scheduler.router)
 
 if _has_n8n:

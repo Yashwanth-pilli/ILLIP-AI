@@ -24,6 +24,7 @@ class HardwareInfo:
     ram_available_gb: float = 0.0
     gpu_name: str = "Unknown"
     gpu_vram_gb: float = 0.0
+    gpu_shared_vram_gb: float = 0.0   # Windows shared GPU memory (system RAM as virtual VRAM)
     os: str = platform.system()
     tier: int = 1  # 1=low, 2=mid, 3=good, 4=high-end
     recommended_model: str = "qwen2.5:3b"
@@ -92,6 +93,11 @@ def detect_hardware() -> HardwareInfo:
         gpu_name, vram_gb = _get_gpu_info_windows_wmi()
     info.gpu_name = gpu_name
     info.gpu_vram_gb = vram_gb
+
+    # Windows Shared GPU Memory — NVIDIA driver lets GPU use system RAM as virtual VRAM.
+    # Available on Windows + dedicated NVIDIA GPU. Cap at 8GB; treat as slow VRAM (3-5x penalty).
+    if platform.system() == "Windows" and vram_gb > 0 and info.ram_available_gb > 4:
+        info.gpu_shared_vram_gb = round(min(info.ram_available_gb * 0.4, 8.0), 1)
 
     # Determine tier
     # Tier 4: RTX-class GPU with 8GB+ VRAM
