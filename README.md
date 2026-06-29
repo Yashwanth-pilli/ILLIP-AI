@@ -1,166 +1,229 @@
-# ILLIP AI
+# ILLIP AI — v3.1
 
-ILLIP AI is a local-first AI assistant scaffold. It gives you a small FastAPI backend, a plain HTML/CSS/JavaScript frontend, five starter agents, local storage, and tests you can run immediately.
+**Your AI company, in your device.**
 
-The goal of this repository is to be easy to understand before it is clever. It avoids heavy frontend frameworks and cloud-only assumptions so beginners can trace each request from the browser to the backend service that handles it.
+ILLIP AI is a portable, private, self-improving AI system that runs on your own hardware. It is not a chatbot. It is a full AI platform with agents, memory, knowledge graph, media generation, browser automation, workspace intelligence, and local model support — all offline-first, all under your control.
+
+---
 
 ## Quick Start
 
-Prerequisites:
-
-- Python 3.9+
-- PowerShell on Windows
-- About 100 MB of disk space for the virtual environment and local data
+**Prerequisites:** Python 3.9+, PowerShell (Windows)
 
 ```powershell
-# 1. Install dependencies and create the virtual environment
+# Install and set up
 .\scripts\setup.ps1
 
-# 2. Start the FastAPI backend
+# Start backend
 .\scripts\run_backend.ps1
 
-# 3. In another terminal, start the frontend
+# Start frontend (second terminal)
 .\scripts\run_frontend.ps1
 ```
 
-Then open:
+| URL | What |
+|---|---|
+| `http://localhost:8080` | Browser UI |
+| `http://127.0.0.1:8000/docs` | Interactive API docs |
+| `http://127.0.0.1:8000/api/health` | Health check |
 
-- Frontend UI: `http://localhost:8080`
-- Backend API docs: `http://127.0.0.1:8000/docs`
-- Backend health check: `http://127.0.0.1:8000/api/health`
+---
 
-## What Is Included
+## What ILLIP AI Can Do
 
-- Five starter agents: Planner, Builder, Reviewer, Tester, and Memory
-- FastAPI routes for chat, tasks, memory, agents, health, and system status
-- Service layer for business logic
-- Provider abstraction with a mock provider ready to use
-- SQLite models plus JSON-backed local storage helpers
-- Plain JavaScript frontend that calls the backend with `fetch()`
-- Pytest suite covering the main API flows
-- Documentation for architecture, API usage, portability, and the self-building loop
+### 27 Agents
+Planner, Builder, Reviewer, Tester, Memory, Research, Code, Writer, Analyst, Summarizer, Translator, Scheduler, QA, Data, Email, CEO, Design, Content, SEO, CustomerSupport, Compliance, Finance, Travel, SkillBuilder, PluginReview, DigitalTwin, Integration.
+
+Route any task to the right agent. Agents retry automatically on failure (exponential backoff).
+
+### Memory System
+- **Qdrant vector memory** — semantic search across all conversations. Falls back to SQLite FTS5 when Ollama is offline.
+- **Memory Ball** — structured named memories (user, project, feedback, reference, fact). Auto-extracted from every conversation turn via LLM.
+- **Knowledge Graph** — entity-relationship graph built automatically from conversations. Links people, projects, tools, concepts.
+
+### Local Model Support
+| Provider | How to use |
+|---|---|
+| Ollama | `ollama serve` — auto-detected |
+| llamafile | Single executable, no install. Set `MODEL_PROVIDER=llamafile` |
+| AirLLM | Layer-streaming for large models on low VRAM. Set `AIRLLM_MODEL=...` |
+| OpenRouter | Set `OPENROUTER_API_KEY` |
+| Groq | Set `GROQ_API_KEY` |
+| Mock | Default — works with no setup |
+
+**Model policy:** DeepSeek is blocked. Allowed families: Llama, Mistral, Phi, Gemma, Granite, Nemotron, Qwen.
+
+### Media Generation
+- **Image** — Stable Diffusion (A1111, Diffusers), Together AI. Local or cloud.
+- **Video** — FramePack, CogVideoX, AnimateDiff, Replicate.
+
+### Voice
+- **Speech-to-text** — local Whisper (`pip install faster-whisper`). Runs on CPU or CUDA.
+- **Text-to-speech** — Piper (local, offline) with gTTS fallback.
+- Use the 🎤 mic button in the UI to speak instead of type.
+
+### Browser Automation
+Full Playwright-based browser agent. Shadow DOM support, task planning, retry logic. Chromium auto-installs on first use.
+
+### Workspace Intelligence
+- List all files in any directory
+- Grep-style search across workspace
+- Read files and extract relevant context for chat
+- Named workspaces with stats and language breakdown
+
+### Plugin Marketplace
+- 12 community plugins ready to install: weather, exchange rates, IP geolocation, GitHub, Hacker News, Wikipedia, Open Library, country info, jokes, n8n webhooks, OpenRouter chat
+- Browse: `GET /api/plugins/catalogue`
+- Install: `POST /api/plugins/install/{name}`
+- Add custom connectors via JSON spec
+
+### Skills
+- Install skill modules from GitHub URL, raw Python URL, or PyPI
+- Skills register as LLM tools — agents call them automatically
+- Built-in: `calculator`, `get_datetime`, `web_search`, `read_file`, `run_python`, `read_pdf`
+
+### Agent SDK
+Build your own agents:
+
+```python
+from app.agents.sdk import IllipAgent, register_agent
+
+class MyAgent(IllipAgent):
+    name = "my_agent"
+    description = "Does cool things"
+
+    async def process(self, task: str, context: dict = {}) -> str:
+        return f"Done: {task}"
+
+register_agent(MyAgent())
+```
+
+Registered agents appear in `GET /api/agents/sdk/list` and can be triggered via the event bus.
+
+### Multi-Device Sync
+- **Zip** — export/import `data/` as a zip file
+- **Git** — push `data/` to a private git remote (`SYNC_GIT_REMOTE` in `.env`)
+- **LAN** — discover other ILLIP instances on your local network and pull their data
+
+```
+GET  /api/sync/lan/info        — announce this instance
+POST /api/sync/lan/scan        — find peers on subnet
+POST /api/sync/lan/pull/{ip}   — pull + merge from peer
+```
+
+### Self-Update
+```
+POST /api/system/update/check    — compare local vs remote HEAD
+POST /api/system/update/pull     — git pull origin main
+POST /api/system/update/restart  — restart process in-place
+```
+
+### Automation
+- **n8n** — workflow integration (set `N8N_URL` in `.env`)
+- **Scheduler** — recurring jobs via cron expressions
+- **Webhooks** — incoming webhook endpoints
+- **SearXNG** — private local search (run `docker run -d -p 8888:8080 searxng/searxng`, set `SEARXNG_URL`)
+
+### Governance
+Approval gates for high-risk actions. Permission control, agent approval, security policy enforcement. `GET /api/governance/pending` to see pending approvals.
+
+### Digital Twin
+Tracks user preferences, workflows, tool usage, and productivity patterns over time. User-controlled, editable, removable.
+
+### API Authentication
+Optional. Set `ILLIP_API_KEYS=key1,key2` in `.env`. Unset = local single-user mode (no auth required).
+
+---
+
+## Configuration (`.env`)
+
+```env
+MODEL_PROVIDER=auto          # auto | ollama | llamafile | airllm | openrouter | groq | mock
+OLLAMA_MODEL=llama3.2:3b
+OLLAMA_BASE_URL=http://localhost:11434
+
+OPENROUTER_API_KEY=          # optional cloud fallback
+GROQ_API_KEY=                # optional cloud fallback
+
+LLAMAFILE_URL=http://localhost:8080
+AIRLLM_MODEL=                # e.g. meta-llama/Llama-2-7b-hf
+
+SEARXNG_URL=http://localhost:8888
+N8N_URL=http://localhost:5678
+SYNC_GIT_REMOTE=             # private git repo for data sync
+
+ILLIP_API_KEYS=              # leave empty for local single-user mode
+WHISPER_MODEL=base           # tiny | base | small | medium | large
+```
+
+---
 
 ## Project Structure
 
-```text
-ILLIP_AI/
-  app/          Backend application, routes, services, agents, providers
-  frontend/     Browser UI built with HTML, CSS, and JavaScript
-  data/         Local runtime data such as logs, tasks, and memory
-  docs/         Architecture and workflow documentation
-  scripts/      PowerShell helpers for setup and local development
-  tests/        Pytest tests for core API behavior
+```
+app/
+  agents/       27 agents + base class + SDK + event bus
+  api/routes/   30+ FastAPI route modules
+  providers/    Ollama, llamafile, AirLLM, OpenRouter, Groq, Mock
+  services/     Memory (Qdrant+FTS5), Memory Ball, Knowledge Graph,
+                Image gen, Video gen, Voice, Browser, Search, Workspace,
+                Self-update, Digital twin, Scheduler, Telegram, Notion, GDrive
+  skills/       Skill registry and installer
+  plugins/      Plugin registry
+  prompts/      System prompt and agent prompts
+  twin/         Digital twin tracker and model
+  hardware/     Hardware detection and context manager
+frontend/       index.html + app.js + styles.css (no framework)
+data/           Runtime data (memory, tasks, logs, images, videos)
+tests/          Pytest suite
+scripts/        PowerShell setup and run helpers
 ```
 
-See [docs/folder_structure.md](docs/folder_structure.md) for a fuller map.
-
-## Frontend and Backend Flow
-
-The frontend and backend are intentionally separate but simple:
-
-1. The browser loads `frontend/index.html`.
-2. `frontend/app.js` sends requests to `http://127.0.0.1:8000/api`.
-3. FastAPI routes in `app/api/routes/` validate and route the request.
-4. Services in `app/services/` perform the work.
-5. Local data is read from or written to `data/` and SQLite.
-6. The backend returns JSON and the frontend updates the page.
-
-The full request map is documented in [docs/integration_flow.md](docs/integration_flow.md).
-
-## Core API Endpoints
-
-| Endpoint | Purpose |
-| --- | --- |
-| `GET /api/health` | Check backend health |
-| `POST /api/chat/` | Send a chat message |
-| `GET /api/tasks/` | List tasks |
-| `POST /api/tasks/` | Create a task |
-| `GET /api/memory/search` | Search memory |
-| `GET /api/agents/` | List agents |
-| `POST /api/agents/{agent_type}/execute` | Run an agent task |
-| `GET /api/system/status` | Read system status |
-
-Use `http://127.0.0.1:8000/docs` for interactive API testing.
-
-## Agents
-
-ILLIP AI starts with five complementary agents:
-
-- Planner: breaks goals into steps
-- Builder: drafts implementation work
-- Reviewer: checks quality, risks, and standards
-- Tester: proposes or validates tests
-- Memory: stores and retrieves project knowledge
-
-Read [AGENTS.md](AGENTS.md) for the agent lifecycle and extension pattern.
+---
 
 ## Running Tests
 
 ```powershell
 pytest -v
-```
-
-Useful focused runs:
-
-```powershell
 pytest tests/test_chat.py -v
 pytest tests/test_agents.py -v
 ```
 
-The tests use FastAPI's `TestClient`, so they exercise the same route layer the frontend calls.
-
-## Configuration
-
-Copy `.env.example` to `.env` if you want to override defaults:
-
-```env
-API_HOST=127.0.0.1
-API_PORT=8000
-MODEL_PROVIDER=mock
-DEBUG=True
-```
-
-The mock provider is the safest default while learning the scaffold. It works without external accounts or model downloads.
-
-## Safety Notes
-
-- The project is local-first; data stays in this project folder unless you change the configuration.
-- Keep `MODEL_PROVIDER=mock` until you intentionally connect another provider.
-- If you rename or move API routes, update `frontend/app.js`, `docs/api.md`, and `docs/integration_flow.md` in the same change.
-- Treat the self-building workflow as a guided development loop. It is designed around approval gates, review, testing, and audit logs.
-
-## Documentation
-
-- [START_HERE.md](START_HERE.md): beginner quick start
-- [docs/integration_flow.md](docs/integration_flow.md): frontend/backend request flow
-- [docs/architecture.md](docs/architecture.md): system design
-- [docs/api.md](docs/api.md): API reference
-- [docs/self_building_loop.md](docs/self_building_loop.md): safe improvement workflow
-- [docs/portability.md](docs/portability.md): moving the project between machines
-- [PROJECT_ROADMAP.md](PROJECT_ROADMAP.md): future milestones
+---
 
 ## Troubleshooting
 
-Backend will not start:
+**Backend won't start:**
+```powershell
+netstat -ano | findstr :8000   # check port conflict
+.\scripts\setup.ps1            # reinstall deps
+```
 
-- Check that port `8000` is free: `netstat -ano | findstr :8000`
-- Re-run `.\scripts\setup.ps1`
-- Confirm you are using the project virtual environment
+**No model responses:**
+- Check `http://127.0.0.1:8000/api/health` — shows active provider
+- Run `ollama serve` for local GPU mode
+- Set `MODEL_PROVIDER=mock` to test without a model
 
-Frontend cannot reach backend:
+**Voice STT not working:**
+```powershell
+pip install faster-whisper
+```
 
-- Confirm the backend is running at `http://127.0.0.1:8000`
-- Open browser dev tools and check the Console tab
-- Confirm `frontend/app.js` still uses `http://127.0.0.1:8000/api`
+**Browser agent fails:**
+```powershell
+playwright install chromium
+```
 
-Tests fail:
+---
 
-- Run `pytest -v` for the full error
-- Make sure dependencies were installed with `.\scripts\setup.ps1`
-- Check that local data folders exist under `data/`
+## Docs
 
-## Current Status
+- [START_HERE.md](START_HERE.md) — first run guide
+- [AGENTS.md](AGENTS.md) — agent system details
+- [docs/architecture.md](docs/architecture.md) — system design
+- [docs/integration_flow.md](docs/integration_flow.md) — request flow
+- [PROJECT_ROADMAP.md](PROJECT_ROADMAP.md) — build phases
 
-Version: `0.1.0`  
-Status: stable learning scaffold  
-Default provider: `mock`
+---
+
+**Version:** 3.1 | **Status:** Phase 3+ complete | **Default provider:** auto (Ollama → llamafile → OpenRouter → Groq → Mock)

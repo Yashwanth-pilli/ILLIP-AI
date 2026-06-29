@@ -1,164 +1,128 @@
-# ILLIP AI - Project Roadmap
+# ILLIP AI — Project Roadmap
 
-## Current Version: 0.1.0 (MVP Foundation)
-
-### Overview
-ILLIP AI is a local-first, portable AI assistant system designed for safe self-improvement. This roadmap outlines the development phases.
-
-## Phase 1: Foundation ✓ (Complete)
-
-### Completed in v0.1.0
-- [x] Backend API (FastAPI)
-- [x] Chat interface (HTML/CSS/JS)
-- [x] Agent framework (5 agents)
-- [x] Memory system (JSON + SQLite)
-- [x] Task management
-- [x] Mock LLM provider
-- [x] Safe self-build workflow
-- [x] Test suite (pytest)
-- [x] Documentation
-- [x] Portability support (Windows/Mac/Linux)
-
-## Phase 2: Model Integration (0.2.0)
-
-### Features Planned
-- [ ] Ollama integration (full implementation)
-- [ ] Local model switching
-- [ ] Model performance metrics
-- [ ] Context length management
-- [ ] Token counting
-- [ ] Response streaming
-- [ ] Model configuration UI
-
-### Timeline: Q1 2024
-
-## Phase 3: Enhanced Memory (0.3.0)
-
-### Features Planned
-- [ ] Vector embeddings for semantic search
-- [ ] Long-term memory (persistent)
-- [ ] Short-term memory (session)
-- [ ] Memory cleanup and archival
-- [ ] Knowledge graph visualization
-- [ ] Memory quality metrics
-
-### Timeline: Q2 2024
-
-## Phase 4: Agent Improvements (0.4.0)
-
-### Features Planned
-- [ ] Parallel agent execution
-- [ ] Agent communication protocol
-- [ ] Custom agent creation UI
-- [ ] Agent performance profiling
-- [ ] Specialized domain agents
-- [ ] Agent training system
-
-### Timeline: Q2-Q3 2024
-
-## Phase 5: Self-Building Implementation (0.5.0)
-
-### Features Planned
-- [ ] Full auto-execution pipeline
-- [ ] Code safety analysis
-- [ ] Dependency management
-- [ ] Automated testing integration
-- [ ] Change rollback system
-- [ ] Audit trail visualization
-
-### Timeline: Q3 2024
-
-## Phase 6: Scaling & Deployment (1.0.0)
-
-### Features Planned
-- [ ] Docker containerization
-- [ ] Cloud deployment templates
-- [ ] Multi-user support
-- [ ] Database migration (PostgreSQL)
-- [ ] API authentication
-- [ ] Performance optimization
-- [ ] Load balancing
-
-### Timeline: Q4 2024
-
-## Phase 7: Advanced Features (1.x)
-
-### Potential Features
-- [ ] Multi-modal support (images, code)
-- [ ] Fine-tuning capabilities
-- [ ] Skill marketplace
-- [ ] Team collaboration
-- [ ] Advanced analytics
-- [ ] Integrations (GitHub, Slack, etc.)
-
-### Timeline: 2025+
-
-## Blocked Features (Not in Scope)
-
-The following are intentionally NOT planned:
-- Large enterprise deployment (focus on individuals/small teams)
-- Proprietary model support (only open source)
-- Real-time collaboration (built for single-user)
-- No training of custom models (use external services)
-- No proprietary extensions (fully open)
-
-## Success Metrics
-
-### Phase 1 Goals
-- [x] System runs stably on Windows laptop
-- [x] Chat interface works smoothly
-- [x] Tests pass reliably
-- [x] Documentation is clear
-- [x] Code is maintainable
-
-### Phase 2+ Goals
-- [ ] Supports Ollama local models
-- [ ] Response quality improves with each update
-- [ ] Memory system scales to 100K+ entries
-- [ ] Self-building makes at least 10 improvements
-- [ ] Deployment time < 5 minutes on new machine
-
-## Community & Contribution
-
-### How to Help
-1. Test the MVP and report issues
-2. Suggest features or improvements
-3. Write documentation
-4. Create new agents for specific tasks
-5. Contribute prompts for specialized domains
-
-### Development Setup
-See [START_HERE.md](START_HERE.md) for setup instructions.
-
-### Code Standards
-- Clean, readable Python (PEP 8)
-- Comprehensive docstrings
-- Test coverage > 70%
-- No external dependencies without discussion
-
-## Quarterly Review
-
-This roadmap will be reviewed quarterly and updated based on:
-- User feedback
-- Technical challenges
-- Community contributions
-- Performance data
-
-## Getting Started
-
-1. **Try It Now:** See [START_HERE.md](START_HERE.md)
-2. **Understand Architecture:** Read [docs/architecture.md](docs/architecture.md)
-3. **Learn About Agents:** See [AGENTS.md](AGENTS.md)
-4. **Explore API:** Visit http://127.0.0.1:8000/docs when running
-
-## Questions?
-
-- Check [docs/](docs/) for detailed documentation
-- Review [README.md](README.md) for overview
-- Open issues on GitHub for bugs/features
+## Current Version: 3.1
 
 ---
 
-**Version:** 0.1.0  
-**Last Updated:** January 2024  
-**Next Review:** April 2024
+## Phase 1: Foundation ✓ (Complete — v0.1.0)
+
+- [x] FastAPI backend
+- [x] HTML/CSS/JS chat interface
+- [x] Agent framework (5 core agents)
+- [x] SQLite memory
+- [x] Task management
+- [x] Mock LLM provider
+- [x] Test suite (pytest)
+- [x] Windows/Mac/Linux portability
+- [x] Documentation scaffold
+
+---
+
+## Phase 2: Model Integration ✓ (Complete — v1.0)
+
+- [x] Ollama integration (full)
+- [x] Local model switching (MODEL_PROVIDER env)
+- [x] Response streaming
+- [x] OpenRouter cloud fallback
+- [x] Groq cloud fallback
+- [x] AirLLM (layer-streaming for large models on low VRAM)
+- [x] llamafile provider (single-file model runner)
+- [x] Model policy enforcement (DeepSeek blocked at factory level)
+- [x] OpenAI-compatible API at /v1/* (Continue.dev, etc.)
+
+---
+
+## Phase 3: Enhanced Memory & Intelligence ✓ (Complete — v2.0)
+
+- [x] Qdrant vector memory (local file storage)
+- [x] SQLite FTS5 fallback when Ollama offline
+- [x] Memory Ball — structured named memories (user/project/feedback/reference/fact)
+- [x] LLM auto-extraction of memories from every chat turn
+- [x] Knowledge Graph — entity-relationship graph, LLM triple extraction
+- [x] Semantic search across all conversations
+- [x] Long-term persistent memory across sessions
+- [x] Self-update: check/pull/restart from GitHub
+
+---
+
+## Phase 4: Agents, Plugins, SDK ✓ (Complete — v3.0)
+
+- [x] 27-agent registry (up from 5)
+  - Core: Planner, Builder, Reviewer, Tester, Memory
+  - Specialist: Research, Code, Writer, Analyst, Summarizer, Translator, Scheduler, QA, Data, Email
+  - Expansion: CEO, Design, Content, SEO, CustomerSupport, Compliance, Finance, Travel, SkillBuilder, PluginReview, DigitalTwin, Integration
+- [x] Publish/subscribe event bus (AgentMessage schema)
+- [x] Retry/backoff on all agents (exponential: 1s, 2s)
+- [x] Tool-call loop in base agent (up to 3 rounds per task)
+- [x] Agent SDK — IllipAgent base class for third-party agents
+- [x] Community plugin catalogue — 12 plugins, install-by-name
+- [x] Skills system — install from URL/GitHub/PyPI, auto-registered as LLM tools
+- [x] Skill Builder Agent — generates new ILLIP skills from task description
+- [x] Plugin Review Agent — security-audits plugins before install
+
+---
+
+## Phase 4+: Extended Capabilities ✓ (Complete — v3.1)
+
+- [x] Voice STT — local Whisper via faster-whisper (CPU + CUDA)
+- [x] Voice TTS — Piper (local, offline) with gTTS fallback
+- [x] Image generation — A1111, Diffusers, Together AI
+- [x] Video generation — FramePack, CogVideoX, AnimateDiff, Replicate
+- [x] Browser automation — Playwright, Shadow DOM, retry, task planning
+- [x] Workspace intelligence — file listing, grep search, context extraction
+- [x] LAN sync — subnet /24 scan, peer discovery, zip pull/merge
+- [x] Zip export/import for offline data transfer
+- [x] Git sync to private remote repo
+- [x] Digital Twin — tracks preferences, workflows, productivity patterns
+- [x] Governance — approval gates for high-risk actions
+- [x] API key auth middleware (optional, off by default)
+- [x] n8n workflow integration
+- [x] Scheduler — recurring cron jobs
+- [x] SearXNG private local search
+- [x] Notion + Google Drive integration
+- [x] Telegram bot (deferred — pending Oracle account)
+
+---
+
+## Phase 5: UI Completeness (In Progress)
+
+- [ ] Workflows UI panel (visual workflow builder)
+- [ ] Skills/Plugins dedicated UI panel (browse, install, manage)
+- [ ] Governance controls UI panel (approve/reject pending actions)
+- [ ] Mobile-friendly audit and responsive fixes
+- [ ] Agent performance dashboard (task counts, latency, error rates)
+
+---
+
+## Phase 6: Revenue & Editions (Deferred — PDF §42)
+
+- [ ] Free / Pro / Enterprise edition gating
+- [ ] Stripe payment integration
+- [ ] Usage metering
+- [ ] Team multi-user support
+
+Revenue structure intentionally deferred. Architecture already supports it (API key auth, governance, agent SDK provide the surface).
+
+---
+
+## Phase 7: Learning Loop (Planned)
+
+- [ ] Fine-tune pipeline — collect approved exchanges as training data
+- [ ] LoRA fine-tuning on local Llama
+- [ ] Model quality metrics and regression detection
+- [ ] Self-improvement benchmark tracking
+
+---
+
+## Deferred Items
+
+| Item | Reason |
+|---|---|
+| Telegram bot | Waiting on Oracle Cloud account (ATM card needed for free tier) |
+| Revenue/editions | Intentionally deferred per PDF §42 |
+| Multi-user real-time collab | Out of scope (single-user, local-first) |
+| Proprietary model support | Policy: open weights only |
+
+---
+
+**Version:** 3.1 | **Last Updated:** 2026-06-29 | **Status:** Phase 4+ complete, Phase 5 UI in progress
