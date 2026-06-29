@@ -10,31 +10,26 @@
   "main": "./out/extension.js",
   "contributes": {
     "commands": [
-      {
-        "command": "illip.openChat",
-        "title": "ILLIP AI: Open Chat"
-      },
-      {
-        "command": "illip.explainSelection",
-        "title": "ILLIP AI: Explain Selected Code"
-      },
-      {
-        "command": "illip.askAboutFile",
-        "title": "ILLIP AI: Ask About Current File"
-      }
+      { "command": "illip.openChat",        "title": "ILLIP AI: Open Chat" },
+      { "command": "illip.explainSelection", "title": "ILLIP AI: Explain Selected Code" },
+      { "command": "illip.askAboutFile",     "title": "ILLIP AI: Ask About Current File" },
+      { "command": "illip.fixCode",          "title": "ILLIP AI: Fix Code" },
+      { "command": "illip.generateTests",    "title": "ILLIP AI: Generate Tests" },
+      { "command": "illip.reviewCode",       "title": "ILLIP AI: Review Code" }
     ],
+    "menus": {
+      "editor/context": [
+        { "command": "illip.explainSelection", "when": "editorHasSelection", "group": "illip@1" },
+        { "command": "illip.fixCode",          "when": "editorHasSelection", "group": "illip@2" },
+        { "command": "illip.generateTests",    "group": "illip@3" },
+        { "command": "illip.reviewCode",       "when": "editorHasSelection", "group": "illip@4" }
+      ]
+    },
     "keybindings": [
-      {
-        "command": "illip.openChat",
-        "key": "ctrl+shift+i",
-        "mac": "cmd+shift+i"
-      },
-      {
-        "command": "illip.explainSelection",
-        "key": "ctrl+shift+e",
-        "mac": "cmd+shift+e",
-        "when": "editorHasSelection"
-      }
+      { "command": "illip.openChat",        "key": "ctrl+shift+i", "mac": "cmd+shift+i" },
+      { "command": "illip.explainSelection", "key": "ctrl+shift+e", "mac": "cmd+shift+e", "when": "editorHasSelection" },
+      { "command": "illip.fixCode",          "key": "ctrl+shift+f", "mac": "cmd+shift+f", "when": "editorHasSelection" },
+      { "command": "illip.generateTests",    "key": "ctrl+shift+t", "mac": "cmd+shift+t" }
     ],
     "configuration": {
       "title": "ILLIP AI",
@@ -48,9 +43,10 @@
     }
   },
   "scripts": {
+    "vscode:prepublish": "tsc -p ./",
     "compile": "tsc -p ./",
     "watch": "tsc -watch -p ./",
-    "package": "vsce package"
+    "package": "vsce package --no-dependencies"
   },
   "devDependencies": {
     "@types/vscode": "^1.85.0",

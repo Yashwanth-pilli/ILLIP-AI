@@ -1,0 +1,19 @@
+{
+  "models": [
+    {
+      "title": "ILLIP AI (local)",
+      "provider": "openai",
+      "model": "illip",
+      "apiBase": "http://localhost:8000/v1",
+      "apiKey": "illip"
+    }
+  ],
+  "tabAutocompleteModel": {
+    "title": "ILLIP AI Autocomplete",
+    "provider": "openai",
+    "model": "illip",
+    "apiBase": "http://localhost:8000/v1",
+    "apiKey": "illip"
+  },
+  "allowAnonymousTelemetry": false
+}

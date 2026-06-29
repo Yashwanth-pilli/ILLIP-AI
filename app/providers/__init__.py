@@ -42,6 +42,11 @@ async def _make_provider() -> BaseProvider:
         logger.info("Provider: OpenRouter (forced)")
         return OpenRouterProvider(or_key)
 
+    if mode == "airllm":
+        from app.providers.airllm_provider import AirLLMProvider
+        logger.info("Provider: AirLLM (layer-streaming, large models on low VRAM)")
+        return AirLLMProvider()
+
     if mode == "ollama":
         p = OllamaProvider()
         ok = await p.health_check()
@@ -51,11 +56,22 @@ async def _make_provider() -> BaseProvider:
             logger.info("Provider: Ollama (local GPU)")
         return p
 
-    # auto: Ollama → OpenRouter → Groq → Mock
+    # auto: Ollama → AirLLM (if configured) → OpenRouter → Groq → Mock
     ollama = OllamaProvider()
     if await ollama.health_check():
         logger.info("Provider: Ollama (auto-selected, GPU active)")
         return ollama
+
+    # AirLLM fallback when AIRLLM_MODEL is set and Ollama is down
+    airllm_model = os.environ.get("AIRLLM_MODEL", "").strip()
+    if airllm_model:
+        try:
+            import airllm  # noqa
+            from app.providers.airllm_provider import AirLLMProvider
+            logger.info("Provider: AirLLM (auto-fallback — Ollama down, AIRLLM_MODEL set)")
+            return AirLLMProvider()
+        except ImportError:
+            pass
 
     if or_key:
         from app.providers.openrouter_provider import OpenRouterProvider
@@ -101,6 +117,8 @@ class ProviderFactory:
     @classmethod
     def list_providers(cls) -> list:
         available = ["ollama"]
+        if os.environ.get("AIRLLM_MODEL", ""):
+            available.append("airllm")
         if os.environ.get("OPENROUTER_API_KEY", ""):
             available.append("openrouter")
         if os.environ.get("GROQ_API_KEY", ""):

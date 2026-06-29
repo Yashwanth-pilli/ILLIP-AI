@@ -108,6 +108,10 @@ app.add_middleware(
 # Include API routes
 app.include_router(api_router)
 
+# OpenAI-compatible endpoint at /v1/* (Continue.dev, OpenAI SDK clients)
+from app.api.routes.openai_compat import router as _oai_router
+app.include_router(_oai_router)
+
 # Serve generated images
 data_dir = settings.project_root / "data"
 data_dir.mkdir(exist_ok=True)
