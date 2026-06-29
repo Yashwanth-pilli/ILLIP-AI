@@ -40,7 +40,7 @@ async def lifespan(app: FastAPI):
 
     # Start observability metrics collector
     from app.monitoring.collector import get_metrics_collector
-    asyncio.create_task(get_metrics_collector().start())
+    get_metrics_collector().start()
 
     # Pre-warm default model in background
     asyncio.create_task(warmup_on_startup(settings.ollama_model, settings.ollama_base_url))
