@@ -2,10 +2,12 @@
 Agent endpoints
 """
 
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, HTTPException, Body
+from typing import Any, Dict
 from app.core import AgentListResponse
 from app.services import get_agent_service
 from app.utils import logger
+import app.agents.sdk as agent_sdk
 
 router = APIRouter(prefix="/agents", tags=["agents"])
 
@@ -64,4 +66,29 @@ async def execute_agent_task(agent_type: str, task_input: str, context: dict = N
         raise
     except Exception as e:
         logger.error(f"Error executing agent task: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+# ── SDK-registered agents ────────────────────────────────────────────────────
+
+@router.get("/sdk/list")
+async def sdk_list_agents():
+    """List all SDK-registered external agents."""
+    return {"agents": agent_sdk.list_agents()}
+
+
+@router.post("/sdk/run/{agent_name}")
+async def sdk_run_agent(
+    agent_name: str,
+    task: str = Body(..., embed=True),
+    context: Dict[str, Any] = Body({}, embed=True),
+):
+    """Run an SDK-registered agent by name."""
+    try:
+        result = await agent_sdk.run_agent(agent_name, task, context)
+        return {"agent": agent_name, "result": result}
+    except ValueError as e:
+        raise HTTPException(status_code=404, detail=str(e))
+    except Exception as e:
+        logger.error(f"SDK agent error [{agent_name}]: {e}")
         raise HTTPException(status_code=500, detail=str(e))

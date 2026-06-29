@@ -2,13 +2,14 @@ from datetime import datetime
 from pathlib import Path
 from typing import Any, Dict, List, Optional
 
-from fastapi import APIRouter, UploadFile, File, HTTPException, Query
+from fastapi import APIRouter, UploadFile, File, HTTPException, Query, Body
 from pypdf import PdfReader
 
 from app.config import settings
 from app.core import Message
 from app.core.schemas import WorkspaceUploadResponse
 from app.providers import get_provider
+from app.services.workspace_service import get_workspace_service
 
 
 router = APIRouter(
@@ -886,3 +887,98 @@ async def upload_workspace(file: UploadFile = File(...)):
         uploaded_at=datetime.now(),
         status="uploaded",
     )
+
+
+# ── WorkspaceService intelligence endpoints ──────────────────────────────────
+
+@router.post("/workspaces")
+async def create_workspace(
+    name: str = Body(..., embed=True),
+    path: str = Body("", embed=True),
+    description: str = Body("", embed=True),
+):
+    """Create a named workspace pointing at a directory on disk."""
+    svc = get_workspace_service()
+    return svc.create_workspace(name, path, description)
+
+
+@router.get("/workspaces")
+async def list_workspaces_svc():
+    """List all named workspaces managed by WorkspaceService."""
+    svc = get_workspace_service()
+    return svc.list_workspaces()
+
+
+@router.get("/workspaces/current")
+async def get_current_workspace():
+    """Return currently active workspace."""
+    svc = get_workspace_service()
+    ws = svc.get_current_workspace()
+    if ws is None:
+        return {"workspace": None}
+    return {"workspace": ws}
+
+
+@router.put("/workspaces/current/{workspace_id}")
+async def switch_workspace(workspace_id: str):
+    """Switch active workspace by ID."""
+    svc = get_workspace_service()
+    ok = svc.set_current_workspace(workspace_id)
+    if not ok:
+        raise HTTPException(status_code=404, detail="Workspace not found")
+    return {"switched": workspace_id}
+
+
+@router.get("/workspaces/stats")
+async def workspace_svc_stats():
+    """File count, size, language breakdown of current workspace."""
+    svc = get_workspace_service()
+    return svc.get_stats()
+
+
+@router.get("/intel/files")
+async def intel_list_files(
+    path: str = Query("", description="Override workspace root path"),
+    max_files: int = Query(200, ge=1, le=2000),
+):
+    """List all text files in workspace (WorkspaceService)."""
+    svc = get_workspace_service()
+    files = svc.list_files(workspace_path=path, max_files=max_files)
+    return {"files": files, "count": len(files)}
+
+
+@router.get("/intel/search")
+async def intel_search_files(
+    q: str = Query(..., description="Search query string"),
+    path: str = Query("", description="Override workspace root path"),
+    max_results: int = Query(20, ge=1, le=100),
+):
+    """Grep-style search across workspace files."""
+    svc = get_workspace_service()
+    results = svc.search_files(query=q, workspace_path=path, max_results=max_results)
+    return {"query": q, "count": len(results), "results": results}
+
+
+@router.get("/intel/read")
+async def intel_read_file(
+    file: str = Query(..., description="Relative file path within workspace"),
+    path: str = Query("", description="Override workspace root path"),
+):
+    """Read a single file from workspace (max 64 KB)."""
+    svc = get_workspace_service()
+    result = svc.read_file(rel_path=file, workspace_path=path)
+    if "error" in result:
+        raise HTTPException(status_code=404, detail=result["error"])
+    return result
+
+
+@router.get("/intel/context")
+async def intel_get_context(
+    q: str = Query(..., description="Query — finds most relevant files"),
+    path: str = Query("", description="Override workspace root path"),
+    max_files: int = Query(5, ge=1, le=20),
+):
+    """Return keyword-scored relevant file context for injection into chat."""
+    svc = get_workspace_service()
+    ctx = svc.get_relevant_context(query=q, workspace_path=path, max_files=max_files)
+    return {"query": q, "context": ctx, "empty": not ctx}

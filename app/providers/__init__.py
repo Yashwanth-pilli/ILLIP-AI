@@ -42,6 +42,15 @@ async def _make_provider() -> BaseProvider:
         logger.info("Provider: OpenRouter (forced)")
         return OpenRouterProvider(or_key)
 
+    if mode == "llamafile":
+        from app.providers.llamafile_provider import LlamafileProvider
+        p = LlamafileProvider()
+        if not await p.health_check():
+            logger.warning(f"llamafile unreachable at {p.base_url} — is it running?")
+        else:
+            logger.info(f"Provider: llamafile ({p.base_url})")
+        return p
+
     if mode == "airllm":
         from app.providers.airllm_provider import AirLLMProvider
         logger.info("Provider: AirLLM (layer-streaming, large models on low VRAM)")
@@ -61,6 +70,18 @@ async def _make_provider() -> BaseProvider:
     if await ollama.health_check():
         logger.info("Provider: Ollama (auto-selected, GPU active)")
         return ollama
+
+    # llamafile fallback — if running at LLAMAFILE_URL
+    llamafile_url = os.environ.get("LLAMAFILE_URL", "http://localhost:8080").strip()
+    if llamafile_url:
+        try:
+            from app.providers.llamafile_provider import LlamafileProvider
+            p = LlamafileProvider()
+            if await p.health_check():
+                logger.info("Provider: llamafile (auto-detected)")
+                return p
+        except Exception:
+            pass
 
     # AirLLM fallback when AIRLLM_MODEL is set and Ollama is down
     airllm_model = os.environ.get("AIRLLM_MODEL", "").strip()
@@ -116,7 +137,7 @@ def reset_provider():
 class ProviderFactory:
     @classmethod
     def list_providers(cls) -> list:
-        available = ["ollama"]
+        available = ["ollama", "llamafile"]
         if os.environ.get("AIRLLM_MODEL", ""):
             available.append("airllm")
         if os.environ.get("OPENROUTER_API_KEY", ""):

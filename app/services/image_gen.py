@@ -231,6 +231,75 @@ async def _generate_together(
         return ImageResult(ok=False, error=f"together: {e}", backend="together")
 
 
+async def _generate_ideogram(
+    prompt: str,
+    width: int,
+    height: int,
+) -> ImageResult:
+    """Ideogram v2 cloud image generation (IDEOGRAM_API_KEY required)."""
+    import httpx
+    t0 = time.time()
+    key = os.getenv("IDEOGRAM_API_KEY", "")
+    if not key:
+        return ImageResult(ok=False, error="IDEOGRAM_API_KEY not set", backend="ideogram")
+
+    # Map pixel dims to nearest Ideogram aspect ratio token
+    ratio = width / max(height, 1)
+    if ratio >= 1.7:
+        aspect = "ASPECT_16_9"
+    elif ratio >= 1.3:
+        aspect = "ASPECT_4_3"
+    elif ratio <= 0.6:
+        aspect = "ASPECT_9_16"
+    elif ratio <= 0.8:
+        aspect = "ASPECT_3_4"
+    else:
+        aspect = "ASPECT_1_1"
+
+    try:
+        async with httpx.AsyncClient(timeout=120) as c:
+            r = await c.post(
+                "https://api.ideogram.ai/generate",
+                headers={"Api-Key": key, "Content-Type": "application/json"},
+                json={
+                    "image_request": {
+                        "prompt": prompt,
+                        "aspect_ratio": aspect,
+                        "model": "V_2",
+                        "magic_prompt_option": "AUTO",
+                    }
+                },
+            )
+            r.raise_for_status()
+            data = r.json()
+
+        img_url = data["data"][0]["url"]
+
+        # Download the image
+        async with httpx.AsyncClient(timeout=60) as c:
+            img_resp = await c.get(img_url)
+            img_resp.raise_for_status()
+            img_bytes = img_resp.content
+
+        out_path = _get_output_dir() / f"img_{int(time.time())}_ideogram.png"
+        out_path.write_bytes(img_bytes)
+        b64 = base64.b64encode(img_bytes).decode()
+
+        return ImageResult(
+            ok=True,
+            image_b64=b64,
+            file_path=str(out_path),
+            url=f"/data/images/{out_path.name}",
+            backend="ideogram",
+            prompt=prompt,
+            width=width,
+            height=height,
+            duration_s=time.time() - t0,
+        )
+    except Exception as e:
+        return ImageResult(ok=False, error=f"ideogram: {e}", backend="ideogram")
+
+
 async def generate_image(
     prompt: str,
     negative_prompt: str = "",
@@ -268,8 +337,16 @@ async def generate_image(
         except Exception as e:
             logger.warning(f"diffusers failed: {e}")
 
+    if backend == "ideogram":
+        return await _generate_ideogram(prompt, width, height)
+
     if backend == "together" or backend == "auto":
         result = await _generate_together(prompt, width, height)
+        if result.ok:
+            return result
+
+    if backend == "auto" and os.getenv("IDEOGRAM_API_KEY", ""):
+        result = await _generate_ideogram(prompt, width, height)
         if result.ok:
             return result
 
@@ -279,7 +356,8 @@ async def generate_image(
             "No image backend available. Options:\n"
             "1. pip install diffusers transformers accelerate torch\n"
             "2. Run Automatic1111 at localhost:7860\n"
-            "3. Set TOGETHER_API_KEY in .env (free tier available)"
+            "3. Set TOGETHER_API_KEY in .env (free tier available)\n"
+            "4. Set IDEOGRAM_API_KEY in .env"
         ),
         backend="none",
     )

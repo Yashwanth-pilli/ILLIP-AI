@@ -95,6 +95,10 @@ app = FastAPI(
     lifespan=lifespan,
 )
 
+# API key auth — enabled when ILLIP_API_KEYS set in .env (server mode)
+from app.auth import APIKeyMiddleware
+app.add_middleware(APIKeyMiddleware)
+
 # CORS is open for the local static frontend. Tighten this before exposing the
 # API outside your own machine.
 app.add_middleware(
