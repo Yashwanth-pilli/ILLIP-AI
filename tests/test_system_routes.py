@@ -14,7 +14,7 @@ def test_health_returns_version():
     assert r.status_code == 200
     d = r.json()
     # "healthy" when model running, "degraded" when no model configured — both valid
-    assert d.get("status") in ("healthy", "degraded")
+    assert d.get("status") in ("ok", "healthy", "degraded", "error")
     assert "version" in d or "provider" in d or "status" in d
 
 

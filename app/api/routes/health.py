@@ -20,8 +20,8 @@ async def health_check() -> HealthResponse:
         # The starter health check is intentionally small: if the configured
         # provider is available, the backend is ready for local use.
         provider = await get_provider()
-        provider_ok = provider.is_available
-        
+        provider_ok = await provider.health_check()
+
         status = "ok" if provider_ok else "degraded"
         
         logger.info(f"Health check: {status}")

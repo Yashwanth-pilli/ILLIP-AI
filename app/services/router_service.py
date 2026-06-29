@@ -60,12 +60,22 @@ _NEEDS_SEARCH = [
     r'\b(news|headline|update|announcement|release|launch|breaking)\b',
     r'\b(20(2[4-9]|3\d))\b',                    # years 2024-2039 (current/future)
     r'\b(price|cost|rate|stock|crypto|weather|score|result|winner)\b',
-    r'\b(who (is|are|was|were)|what (is|are) .{1,30}\?)',
+    r'\b(who (is|are|was|were))\b',
+    r'\bwhat (is|are) (?![\d\s+\-*/^().,]+\??\s*$)[a-zA-Z].{2,28}\?',  # "what is X?" but not math
     r'\b(search|find|look up|google|check online)\b',
-    r'\b(github\.com|youtube\.com|twitter|reddit|instagram)\b',  # wants a specific site
+    r'\b(github\.com|youtube\.com|twitter|reddit|instagram)\b',
     r'\bhow (much|many) .{1,40}\?',
     r'\bwhen (is|was|does|did) .{1,40}\?',
 ]
+
+# Patterns that block search even if _NEEDS_SEARCH matches
+_NO_SEARCH = [
+    r'^[\d\s+\-*/^().,=]+[?]?\s*$',          # pure arithmetic: "2+2", "12*8?"
+    r'\b(calculate|compute|solve|simplify)\b',
+    r'\b(convert|how many .*(byte|kb|mb|gb|kg|lb|km|mile|inch|foot|feet|celsius|fahrenheit))',
+]
+
+_NO_SEARCH_RE = [re.compile(p, re.IGNORECASE) for p in _NO_SEARCH]
 
 _COMPLEX_RE      = [re.compile(p, re.IGNORECASE) for p in _COMPLEX]
 _SIMPLE_RE       = [re.compile(p, re.IGNORECASE) for p in _SIMPLE]
@@ -87,7 +97,10 @@ def _classify(message: str) -> str:
 
 def _should_search(message: str) -> bool:
     """Auto-detect if query needs live web search."""
-    return any(p.search(message.strip()) for p in _SEARCH_RE)
+    msg = message.strip()
+    if any(p.search(msg) for p in _NO_SEARCH_RE):
+        return False
+    return any(p.search(msg) for p in _SEARCH_RE)
 
 
 async def route(message: str, ceiling_model: str = None) -> dict:

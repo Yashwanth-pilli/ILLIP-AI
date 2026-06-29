@@ -121,3 +121,18 @@ def get_chat_service() -> ChatService:
     if _chat_service is None:
         _chat_service = ChatService()
     return _chat_service
+
+
+class _LLMClient:
+    """Thin wrapper: agents call await llm.complete(prompt, system=None) -> str."""
+    async def complete(self, prompt: str, system: str | None = None) -> str:
+        provider = await get_provider()
+        msgs: List[Message] = []
+        if system:
+            msgs.append(Message(role="system", content=system))
+        msgs.append(Message(role="user", content=prompt))
+        return await provider.safe_generate(messages=msgs, temperature=0.3)
+
+
+def get_llm() -> _LLMClient:
+    return _LLMClient()
