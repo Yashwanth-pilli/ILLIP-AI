@@ -25,4 +25,4 @@ trafilatura>=1.8.0             # web page text extraction for research agent
 playwright>=1.44.0             # browser automation agent — run: playwright install chromium
 
 # Optional — only needed locally (GPU/mic), skipped gracefully in cloud
-# faster-whisper>=1.0.0
+faster-whisper>=1.0.0

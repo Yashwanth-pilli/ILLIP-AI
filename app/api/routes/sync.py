@@ -9,12 +9,14 @@ POST /api/sync/git-push → push data/ to configured git remote (SYNC_GIT_REMOTE
 
 import io
 import os
+import socket
 import zipfile
 import asyncio
 from datetime import datetime
 from pathlib import Path
 
-from fastapi import APIRouter, HTTPException, UploadFile, File
+import httpx
+from fastapi import APIRouter, HTTPException, UploadFile, File, Query
 from fastapi.responses import StreamingResponse
 
 from app.utils import logger
@@ -100,24 +102,10 @@ async def import_data(file: UploadFile = File(...)):
         raise HTTPException(400, "Upload a .zip file created by /sync/export")
 
     content = await file.read()
-    buf = io.BytesIO(content)
-
     try:
-        with zipfile.ZipFile(buf) as zf:
-            names = zf.namelist()
-            # Safety: only extract into data/
-            bad = [n for n in names if not n.startswith("data/") or ".." in n]
-            if bad:
-                raise HTTPException(400, f"Zip contains unexpected paths: {bad[:3]}")
-
-            restored = 0
-            for name in names:
-                target = Path(name)
-                target.parent.mkdir(parents=True, exist_ok=True)
-                target.write_bytes(zf.read(name))
-                restored += 1
-    except zipfile.BadZipFile:
-        raise HTTPException(400, "Invalid or corrupted zip file")
+        restored = _apply_zip_bytes(content)
+    except (zipfile.BadZipFile, ValueError) as e:
+        raise HTTPException(400, str(e) or "Invalid or corrupted zip file")
 
     state = _read_sync_state()
     state["last_import"] = datetime.now().isoformat()
@@ -176,6 +164,107 @@ async def git_push():
         raise
     except Exception as e:
         raise HTTPException(500, f"Git sync failed: {e}")
+
+
+# ── LAN sync ─────────────────────────────────────────────────────────────────
+
+def _local_ip() -> str:
+    try:
+        s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+        s.connect(("8.8.8.8", 80))
+        ip = s.getsockname()[0]
+        s.close()
+        return ip
+    except Exception:
+        return "127.0.0.1"
+
+
+def _apply_zip_bytes(content: bytes) -> int:
+    """Extract zip bytes into project root. Returns file count. Shared by import + LAN pull."""
+    buf = io.BytesIO(content)
+    with zipfile.ZipFile(buf) as zf:
+        names = zf.namelist()
+        bad = [n for n in names if not n.startswith("data/") or ".." in n]
+        if bad:
+            raise ValueError(f"Zip contains unexpected paths: {bad[:3]}")
+        for name in names:
+            target = Path(name)
+            target.parent.mkdir(parents=True, exist_ok=True)
+            target.write_bytes(zf.read(name))
+        return len(names)
+
+
+@router.get("/lan/info")
+async def lan_info():
+    """Announce this ILLIP instance on the LAN. Other devices scan for this endpoint."""
+    return {
+        "app": "illip-ai",
+        "host": socket.gethostname(),
+        "ip": _local_ip(),
+        "port": int(os.getenv("PORT", "8000")),
+        "version": "1.0",
+    }
+
+
+@router.post("/lan/scan")
+async def lan_scan(
+    port: int = Query(8000, description="Port to scan for ILLIP instances"),
+    timeout: float = Query(0.4, description="Per-host timeout in seconds"),
+):
+    """
+    Scan the local subnet for other ILLIP instances.
+    Checks every IP in the /24 subnet of this machine concurrently.
+    """
+    my_ip = _local_ip()
+    subnet = ".".join(my_ip.split(".")[:3])
+    found = []
+
+    async def _check(ip: str) -> None:
+        try:
+            async with httpx.AsyncClient(timeout=timeout) as client:
+                r = await client.get(f"http://{ip}:{port}/api/sync/lan/info")
+                if r.status_code == 200:
+                    data = r.json()
+                    if data.get("app") == "illip-ai" and data.get("ip") != my_ip:
+                        found.append(data)
+        except Exception:
+            pass
+
+    await asyncio.gather(*[_check(f"{subnet}.{i}") for i in range(1, 255)])
+    logger.info(f"LAN scan: found {len(found)} peer(s) on {subnet}.0/24")
+    return {"peers": found, "count": len(found), "my_ip": my_ip, "subnet": f"{subnet}.0/24"}
+
+
+@router.post("/lan/pull/{ip}")
+async def lan_pull(ip: str, port: int = Query(8000)):
+    """
+    Pull and merge data/ from another ILLIP instance on the LAN.
+    The remote must be reachable and running ILLIP.
+    """
+    url = f"http://{ip}:{port}/api/sync/export"
+    try:
+        async with httpx.AsyncClient(timeout=120.0) as client:
+            r = await client.post(url)
+            if r.status_code != 200:
+                raise HTTPException(status_code=502, detail=f"Remote {ip} returned HTTP {r.status_code}")
+            content = r.content
+    except httpx.ConnectError:
+        raise HTTPException(status_code=502, detail=f"Cannot reach {ip}:{port} — is ILLIP running there?")
+    except httpx.TimeoutException:
+        raise HTTPException(status_code=504, detail=f"Timed out pulling from {ip}:{port}")
+
+    try:
+        restored = _apply_zip_bytes(content)
+    except (zipfile.BadZipFile, ValueError) as e:
+        raise HTTPException(status_code=422, detail=str(e))
+
+    state = _read_sync_state()
+    state["last_import"] = datetime.now().isoformat()
+    state["last_lan_pull"] = f"{ip}:{port} @ {datetime.now().isoformat()}"
+    _write_sync_state(state)
+
+    logger.info(f"LAN pull from {ip}: {restored} files restored")
+    return {"ok": True, "source": f"{ip}:{port}", "files_restored": restored}
 
 
 async def _run_git(cwd: Path, *args: str):
