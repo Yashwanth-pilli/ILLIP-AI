@@ -32,7 +32,7 @@ class IllipAgent(ABC):
 
     name: str = "unnamed"
     description: str = ""
-    version: str = "0.1.0"
+    version: str = "1.0.0"
 
     # Override to declare env vars or pip packages this agent needs
     requires_env: list[str] = []

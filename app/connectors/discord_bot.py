@@ -68,8 +68,10 @@ async def start_discord_bot():
         elif content == "!status":
             try:
                 import httpx
+                from app.config import settings as _cfg
+                _base = f"http://127.0.0.1:{_cfg.api_port}"
                 async with httpx.AsyncClient() as hc:
-                    r = await hc.get("http://localhost:8000/api/v1/health", timeout=5)
+                    r = await hc.get(f"{_base}/api/health", timeout=5)
                     data = r.json()
                 await message.channel.send(f"```json\n{data}\n```")
             except Exception as e:

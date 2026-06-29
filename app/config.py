@@ -23,6 +23,7 @@ class Settings(BaseSettings):
     # Ollama — local models
     ollama_base_url: str = "http://localhost:11434"
     ollama_model: str = "llama3.2:3b"
+    ollama_embed_model: str = "nomic-embed-text"  # used for vector memory embeddings
 
     # Generic OpenAI-compatible endpoint
     # Use for: DeepSeek, vLLM, LM Studio, Together AI, Mistral, Perplexity, etc.

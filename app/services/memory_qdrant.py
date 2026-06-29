@@ -26,8 +26,9 @@ _QDRANT_PATH  = _DATA_DIR / "qdrant"
 _FTS_DB       = _DATA_DIR / "memory_fts.db"
 
 # ── Embedding config ────────────────────────────────────────────────────────
-_OLLAMA_URL  = "http://localhost:11434"
-_EMBED_MODEL = "nomic-embed-text"
+import os as _os
+_OLLAMA_URL  = _os.getenv("OLLAMA_BASE_URL", "http://localhost:11434")
+_EMBED_MODEL = _os.getenv("OLLAMA_EMBED_MODEL", "nomic-embed-text")
 _VECTOR_SIZE = 768   # nomic-embed-text output
 
 # ── State ───────────────────────────────────────────────────────────────────
