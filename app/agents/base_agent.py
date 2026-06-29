@@ -1,5 +1,6 @@
 """Base class shared by all ILLIP AI agents."""
 
+import asyncio
 from abc import ABC, abstractmethod
 from pathlib import Path
 from typing import Optional, Dict, Any, List
@@ -80,25 +81,35 @@ class BaseAgent(ABC):
         self,
         task_input: str,
         context: Optional[Dict[str, Any]] = None,
+        max_retries: int = 2,
     ) -> Dict[str, Any]:
-        try:
-            self.task_count += 1
-            self.last_activity = get_current_timestamp()
-            result = await self.process(task_input, context)
-            return {
-                "status": "success",
-                "agent": self.agent_type,
-                "output": result,
-                "task_count": self.task_count,
-            }
-        except Exception as e:
-            logger.error(f"Agent {self.agent_type} task failed: {e}")
-            return {
-                "status": "error",
-                "agent": self.agent_type,
-                "error": str(e),
-                "task_count": self.task_count,
-            }
+        self.task_count += 1
+        self.last_activity = get_current_timestamp()
+        last_err: Exception | None = None
+        for attempt in range(max_retries + 1):
+            try:
+                result = await self.process(task_input, context)
+                return {
+                    "status": "success",
+                    "agent": self.agent_type,
+                    "output": result,
+                    "task_count": self.task_count,
+                    "attempts": attempt + 1,
+                }
+            except Exception as e:
+                last_err = e
+                if attempt < max_retries:
+                    wait = 2 ** attempt  # 1s, 2s
+                    logger.warning(f"Agent {self.agent_type} attempt {attempt+1} failed ({e}), retrying in {wait}s")
+                    await asyncio.sleep(wait)
+        logger.error(f"Agent {self.agent_type} failed after {max_retries+1} attempts: {last_err}")
+        return {
+            "status": "error",
+            "agent": self.agent_type,
+            "error": str(last_err),
+            "task_count": self.task_count,
+            "attempts": max_retries + 1,
+        }
 
     def to_dict(self) -> Dict[str, Any]:
         return {

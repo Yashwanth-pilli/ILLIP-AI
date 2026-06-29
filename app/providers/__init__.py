@@ -23,10 +23,29 @@ _provider: Optional[BaseProvider] = None
 _provider_name: str = ""
 
 
+_MODEL_BLOCKLIST = ("deepseek",)  # per PDF §28 model policy
+
+
+def _check_model_policy(model_name: str) -> None:
+    """Raise if model name violates project policy."""
+    lower = (model_name or "").lower()
+    for blocked in _MODEL_BLOCKLIST:
+        if blocked in lower:
+            raise RuntimeError(
+                f"Model '{model_name}' is blocked by ILLIP model policy (§28). "
+                f"Blocked families: {_MODEL_BLOCKLIST}. "
+                "Allowed: Llama, Mistral, Phi, Gemma, Granite, Nemotron, Qwen."
+            )
+
+
 async def _make_provider() -> BaseProvider:
     mode = (os.environ.get("MODEL_PROVIDER") or settings.model_provider or "auto").lower()
     groq_key = os.environ.get("GROQ_API_KEY", "").strip()
     or_key   = os.environ.get("OPENROUTER_API_KEY", "").strip()
+
+    # Enforce model policy on any explicitly configured model name
+    for env_var in ("OLLAMA_MODEL", "AIRLLM_MODEL", "LLAMAFILE_MODEL", "GROQ_MODEL"):
+        _check_model_policy(os.environ.get(env_var, ""))
 
     if mode == "groq":
         if not groq_key:

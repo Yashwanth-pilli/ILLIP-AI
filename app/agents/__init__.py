@@ -10,6 +10,9 @@ from app.agents.memory_agent import MemoryAgent
 from app.agents.specialist_agents import (
     ResearchAgent, CodeAgent, WriterAgent, AnalystAgent, SummarizerAgent,
     TranslatorAgent, SchedulerAgent, QAAgent, DataAgent, EmailAgent,
+    CEOAgent, DesignAgent, ContentAgent, SEOAgent, CustomerSupportAgent,
+    ComplianceAgent, FinanceAgent, TravelAgent, SkillBuilderAgent,
+    PluginReviewAgent, DigitalTwinAgent, IntegrationAgent,
 )
 from app.utils import logger
 
@@ -39,6 +42,18 @@ class AgentRegistry:
             QAAgent(),
             DataAgent(),
             EmailAgent(),
+            CEOAgent(),
+            DesignAgent(),
+            ContentAgent(),
+            SEOAgent(),
+            CustomerSupportAgent(),
+            ComplianceAgent(),
+            FinanceAgent(),
+            TravelAgent(),
+            SkillBuilderAgent(),
+            PluginReviewAgent(),
+            DigitalTwinAgent(),
+            IntegrationAgent(),
         ]
         
         for agent in agents:
