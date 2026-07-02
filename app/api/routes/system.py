@@ -274,18 +274,60 @@ async def list_models_with_plans():
 
 @router.post("/models/switch")
 async def switch_active_model(body: dict):
-    """Switch active model at runtime — no restart needed."""
+    """
+    Switch active model at runtime — no restart needed.
+    Triggers Ghost Engine pre-warm so first request is fast.
+    """
+    import asyncio
     model = body.get("model", "").strip()
     if not model:
         raise HTTPException(status_code=400, detail="model required")
     from app.config import settings as _cfg
+    old_model = _cfg.ollama_model
     _cfg.ollama_model = model
-    # Also update the provider singleton
+
+    # Update provider singleton
     from app.providers import get_provider
     provider = await get_provider()
     if hasattr(provider, "model"):
         provider.model = model
-    return {"switched_to": model}
+
+    # Drop old model from warmed cache so next request uses Ghost Engine for new model
+    from app.hardware.speed_optimizer import _warmed
+    _warmed.pop(old_model, None)
+
+    # Get Ghost plan for the new model (fast — just Ollama /api/show + hw query)
+    ghost_info = {}
+    try:
+        from app.hardware.ghost_engine import calculate_plan
+        plan = await calculate_plan(model, requested_ctx=8192, base_url=_cfg.ollama_base_url)
+        ghost_info = {
+            "strategy":      plan.strategy,
+            "gpu_layers":    plan.gpu_layers,
+            "total_layers":  plan.total_layers,
+            "context_limit": plan.context_limit,
+            "vram_used_gb":  plan.vram_used_gb,
+            "warnings":      plan.warnings[:2],  # top 2 only
+        }
+        # Pre-warm in background so first chat request is instant
+        asyncio.create_task(
+            _pre_warm_model(model, _cfg.ollama_base_url, plan.ollama_options.get("num_ctx", 4096))
+        )
+    except Exception as e:
+        logger.warning(f"Ghost plan failed for {model}: {e}")
+
+    logger.info(f"Model switched: {old_model} → {model} | strategy={ghost_info.get('strategy','?')}")
+    return {"switched_to": model, "ghost": ghost_info}
+
+
+async def _pre_warm_model(model: str, base_url: str, num_ctx: int) -> None:
+    """Background: load model into VRAM with Ghost-computed ctx so first request has zero reload penalty."""
+    try:
+        from app.hardware.speed_optimizer import pre_warm
+        await pre_warm(model, base_url, num_ctx=num_ctx)
+        logger.info(f"Ghost pre-warm complete: {model} ctx={num_ctx}")
+    except Exception as e:
+        logger.debug(f"Ghost pre-warm failed (non-critical): {e}")
 
 
 @router.get("/reflexion/stats")

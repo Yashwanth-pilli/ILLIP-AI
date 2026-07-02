@@ -170,6 +170,61 @@ async def vision_analyze(
     return {"description": result, "prompt": prompt, "filename": file.filename}
 
 
+@router.post("/document/analyze")
+async def document_analyze(file: UploadFile = File(...)):
+    """
+    Extract text from an uploaded PDF (no image pipeline, no vision model).
+    POST multipart: file (application/pdf). Returns extracted text for the
+    frontend to fold into the next chat message as context.
+    """
+    if not (file.filename or "").lower().endswith(".pdf"):
+        raise HTTPException(status_code=400, detail="Only PDF files are supported here")
+
+    data = await file.read()
+    if not data:
+        raise HTTPException(status_code=400, detail="Empty file")
+
+    import tempfile as _tempfile
+    tmp_path = None
+    try:
+        with _tempfile.NamedTemporaryFile(suffix=".pdf", delete=False) as tmp:
+            tmp.write(data)
+            tmp_path = Path(tmp.name)
+
+        from app.skills.builtin.pdf_reader import _extract_pdfplumber, _extract_pypdf
+        max_pages = 20
+        try:
+            text = _extract_pdfplumber(tmp_path, max_pages)
+        except ImportError:
+            try:
+                text = _extract_pypdf(tmp_path, max_pages)
+            except ImportError:
+                raise HTTPException(
+                    status_code=501,
+                    detail="No PDF library installed. Run: pip install pdfplumber",
+                )
+    finally:
+        if tmp_path is not None:
+            try:
+                os.unlink(tmp_path)
+            except OSError:
+                pass
+
+    if not text.strip():
+        return {
+            "text": "",
+            "filename": file.filename,
+            "error": "No text extracted — this PDF may be scanned (image-based). OCR not yet supported.",
+        }
+
+    char_limit = 8000
+    truncated = len(text) > char_limit
+    if truncated:
+        text = text[:char_limit]
+
+    return {"text": text, "filename": file.filename, "truncated": truncated}
+
+
 @router.get("/status")
 async def voice_status():
     """What voice/vision features are available."""

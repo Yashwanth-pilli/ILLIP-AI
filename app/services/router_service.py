@@ -42,9 +42,13 @@ _detect_models()
 # Patterns that signal complex tasks needing the large model
 _COMPLEX = [
     r'\b(analyze|analyse|compare|evaluate|critique|examine in detail)\b',
-    r'\b(write a complete|implement|design|build|create an? (app|system|module|class|api))\b',
+    r'\b(write a complete|implement|design|build|create an? (app|system|module|class|api|tool|bot|script|scraper))\b',
+    r'\b(plan|outline|architect|scaffold|structure|draft)\b.{5,}',
     r'\b(step[- ]by[- ]step|explain (why|how)|walk me through)\b',
     r'\b(debug|refactor|optimize|review (this )?(code|function|class))\b',
+    r'\b(how (do|does|can|should|would) (i|you|we))\b.{10,}',
+    r'\b(python|javascript|typescript|java|go|rust|sql|html|css)\b.{10,}',
+    r'\b(code|function|class|method|api|endpoint|database|schema)\b.{10,}',
     r'```',
     r'\n.*\n.*\n',
 ]
@@ -124,30 +128,28 @@ async def route(message: str, ceiling_model: str = None) -> dict:
     warning = ""
 
     # Step 1: pick based on task complexity
-    if complexity in ("simple", "medium"):
+    if complexity == "simple":
         ideal = SMALL
-    else:
+    else:  # medium or complex → large
         ideal = LARGE
 
-    # Step 2: hardware guard — can only go DOWN, never up
+    # Step 2: hardware guard — critical forces SMALL; high just warns (user's 4060 can handle it)
     if hw.pressure == "critical":
         model = SMALL
         reason = f"Hardware critical ({hw.reason}) — forced {SMALL}"
         warning = f"⚠️ System under heavy load ({hw.reason}). Switched to fast mode. Close other apps."
-    elif hw.pressure == "high":
-        model = SMALL
-        reason = f"High pressure ({hw.reason}) — using {SMALL} to protect your laptop"
-        warning = f"🔶 High system load detected. Using lighter model to keep things stable."
     else:
         model = ideal
         reason = f"{complexity} task → {ideal}"
+        if hw.pressure == "high":
+            warning = f"🔶 High system load detected. Consider closing other apps."
 
-    # Step 3: if user explicitly boosted, honour it (unless hardware critical)
+    # Step 3: if user explicitly pinned a model, honour it (unless hardware critical)
     if ceiling_model and hw.pressure != "critical":
         model_rank = {SMALL: 1, LARGE: 2, "qwen2.5:14b": 3}
-        if model_rank.get(ceiling_model, 1) > model_rank.get(model, 1):
+        if model_rank.get(ceiling_model, 1) >= model_rank.get(model, 1):
             model = ceiling_model
-            reason += f" (user boosted to {ceiling_model})"
+            reason += f" (user pinned {ceiling_model})"
 
     from app.hardware.guard import get_safe_context_limit
     ctx = get_safe_context_limit(hw, requested=8192)

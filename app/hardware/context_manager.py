@@ -16,18 +16,19 @@ from dataclasses import dataclass
 from app.utils import logger
 
 # Token budget (approximate — 1 word ≈ 1.3 tokens)
+# Sized for 8192 ctx window on RTX 4060 8GB with qwen2.5:7b
 _BUDGET = {
-    "system":   500,   # system prompt
-    "summary":  300,   # compressed old history
-    "memory":   200,   # Qdrant retrieved memories
-    "search":   400,   # web search results
-    "history":  800,   # last N raw turns
-    "message":  300,   # current user message
+    "system":   800,   # system prompt
+    "summary":  600,   # compressed old history
+    "memory":   400,   # Qdrant retrieved memories
+    "search":  1000,   # web search results
+    "history": 1500,   # last N raw turns
+    "message": 2700,   # current user message — generous: may carry attached document text
 }
-TOTAL_SAFE_BUDGET = sum(_BUDGET.values())   # ~2500 tokens — safe for any model
+TOTAL_SAFE_BUDGET = sum(_BUDGET.values())   # ~6000 tokens — fits 8192 ctx
 
 # Keep last N turns raw; everything older gets summarized
-_RAW_TURNS = 5
+_RAW_TURNS = 8
 
 
 def _count_tokens(text: str) -> int:

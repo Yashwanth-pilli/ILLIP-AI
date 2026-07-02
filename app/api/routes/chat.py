@@ -27,6 +27,9 @@ router = APIRouter(prefix="/chat", tags=["chat"])
 
 _active_model: str = ""  # updated on each stream request
 
+# Background task gate: track message count to rate-limit expensive background LLM tasks
+_msg_count = 0
+
 
 async def _reflexion_observe(question: str, response: str, base_url: str) -> None:
     """Fire-and-forget: score response quality, save high-quality patterns."""
@@ -83,26 +86,16 @@ def get_active_model() -> str:
 
 @router.post("/", response_model=ChatResponse)
 async def send_chat_message(request: ChatRequest) -> ChatResponse:
-    """
-    Send a chat message and get a response
-    
-    Args:
-        message: User's message
-        include_memory: Whether to include memory context (default: true)
-    
-    Returns:
-        Chat response with assistant's reply
-    """
     try:
         if not request.message or not request.message.strip():
             raise HTTPException(status_code=400, detail="Message cannot be empty")
-        
+
         chat_service = get_chat_service()
         response = await chat_service.send_message(
             request.message,
             include_memory=request.include_memory
         )
-        
+
         return ChatResponse(
             user_message=request.message,
             assistant_message=response,
@@ -118,127 +111,119 @@ async def send_chat_message(request: ChatRequest) -> ChatResponse:
 @router.post("/stream")
 async def stream_chat_message(request: ChatRequest):
     """Stream chat response token-by-token via SSE with hardware-aware model routing."""
-    global _active_model
+    global _active_model, _msg_count
     if not request.message or not request.message.strip():
         raise HTTPException(status_code=400, detail="Message cannot be empty")
 
     from app.services.router_service import route
-    from app.services.memory_qdrant import retrieve_memory, store_memory, format_memories_for_prompt
-    from app.services.search_service import web_search, format_search_results
-    from app.skills.registry import get_registry
-    from app.hardware.context_manager import build_managed_context, managed_context_to_messages
-    from app.utils import get_current_timestamp as ts
     from app.config import settings as _cfg
 
-    # Route: pick model + context limit + auto-detect if search needed
+    # Route first — fast (regex + hardware read), no LLM
     routing = await route(request.message, ceiling_model=request.model)
-    chosen_model  = routing["model"]
-    ctx_limit     = routing["context_limit"]
+    chosen_model = routing["model"]
+    ctx_limit = routing["context_limit"]
 
-    provider      = await get_provider()
+    provider = await get_provider()
     # When Groq is active, replace Ollama model names with Groq model
     if hasattr(provider, 'model') and ":" in chosen_model:
         chosen_model = provider.model
 
     _active_model = chosen_model
 
-    # force_search: user toggled search button OR router detected live-data need
     do_search = routing["needs_search"] or request.force_search
-
-    project_id   = request.project_id or "default"
-    chat_service = get_chat_service()
-
+    project_id = request.project_id or "default"
     is_simple = routing["complexity"] == "simple"
-
-    # For simple queries use the warmed ctx (avoids Ollama model reload = -30s latency)
-    from app.hardware.speed_optimizer import get_warmed_ctx
-    if is_simple:
-        ctx_limit = get_warmed_ctx(chosen_model, fallback=ctx_limit)
-
-    # Memory retrieval: always run (even simple queries benefit from context)
-    # Search: only when needed
-    memories_task = asyncio.create_task(
-        retrieve_memory(request.message, top_k=4, project_id=project_id)
-    )
-    search_task = asyncio.create_task(
-        web_search(request.message, max_results=4)
-    ) if do_search else None
-
-    memories   = await memories_task
-    search_res = await search_task if search_task else []
-    memory_ctx = format_memories_for_prompt(memories)
-    search_ctx = format_search_results(search_res) if search_res else ""
-
-    # Inject structured Memory Ball context (named, typed memories)
-    try:
-        from app.services.memory_ball import search as ball_search, format_for_prompt as ball_fmt
-        ball_hits = await asyncio.get_event_loop().run_in_executor(
-            None, ball_search, request.message, None, 4
-        )
-        if ball_hits:
-            ball_ctx = ball_fmt(ball_hits)
-            memory_ctx = (memory_ctx + "\n\n" + ball_ctx).strip() if memory_ctx else ball_ctx
-    except Exception:
-        pass
-
-    # Inject Knowledge Graph context for key entities mentioned in message
-    try:
-        from app.services.knowledge_graph import search_nodes, format_for_prompt as kg_fmt
-        loop = asyncio.get_event_loop()
-        # Find entities in message that exist in KG
-        kg_nodes = await loop.run_in_executor(None, search_nodes, request.message, 3)
-        if kg_nodes:
-            kg_ctx = await loop.run_in_executor(
-                None, kg_fmt, kg_nodes[0]["name"], 1
-            )
-            if kg_ctx:
-                memory_ctx = (memory_ctx + "\n\n" + kg_ctx).strip() if memory_ctx else kg_ctx
-    except Exception:
-        pass
-
-    raw_history = chat_service._get_history(project_id)
-    from app.services.chat_service import _load_system_prompt
-    from app.services.router_service import SMALL as _small_model
-    system_prompt = _load_system_prompt()
-
-    if is_simple:
-        # Fast path: last 4 turns + inject any retrieved memories into system prompt
-        recent = [{"role": m.role, "content": m.content} for m in raw_history[-8:]
-                  if m.role in ("user", "assistant")]
-        sys_content = system_prompt + (f"\n\n{memory_ctx}" if memory_ctx else "")
-        messages = (
-            [Message(role="system", content=sys_content, timestamp=ts())]
-            + [Message(role=m["role"], content=m["content"], timestamp=ts()) for m in recent]
-            + [Message(role="user", content=request.message, timestamp=ts())]
-        )
-    else:
-        managed = await build_managed_context(
-            full_history=raw_history,
-            user_message=request.message,
-            system_prompt=system_prompt,
-            memory_ctx=memory_ctx,
-            search_ctx=search_ctx,
-            ollama_base_url=_cfg.ollama_base_url,
-            small_model=_small_model,
-        )
-        messages = [
-            Message(role=m["role"], content=m["content"], timestamp=ts())
-            for m in managed_context_to_messages(managed)
-        ]
-
-    # Append raw user message to history (not enriched — keep history clean)
-    user_msg = Message(role="user", content=request.message, timestamp=ts())
-    chat_service.append_message(user_msg, project_id)
-
-    registry = get_registry()
-    tool_specs = registry.to_tool_specs()
-
-    collected = []
+    _msg_count += 1
+    msg_n = _msg_count
 
     async def event_stream():
+        # Yield routing immediately — user sees model + status with no delay
         yield f"data: {json.dumps({'routing': routing})}\n\n"
 
-        # Tool-call loop: skip for simple queries UNLESS caller forced tools (e.g. Telegram).
+        # Heavy lifting runs here, inside the generator, after headers are sent
+        from app.services.memory_qdrant import retrieve_memory, store_memory, format_memories_for_prompt
+        from app.services.search_service import web_search, format_search_results
+        from app.skills.registry import get_registry
+        from app.hardware.context_manager import build_managed_context, managed_context_to_messages
+        from app.utils import get_current_timestamp as ts
+        from app.services.router_service import SMALL as _small_model
+        from app.hardware.speed_optimizer import get_warmed_ctx
+        from app.services.chat_service import _load_system_prompt
+
+        chat_service = get_chat_service()
+        ctx_limit_use = get_warmed_ctx(chosen_model, fallback=ctx_limit) if is_simple else ctx_limit
+
+        # Run memory + optional search concurrently
+        memories_task = asyncio.create_task(
+            retrieve_memory(request.message, top_k=4, project_id=project_id)
+        )
+        search_task = asyncio.create_task(
+            web_search(request.message, max_results=4)
+        ) if do_search else None
+
+        memories = await memories_task
+        search_res = await search_task if search_task else []
+        memory_ctx = format_memories_for_prompt(memories)
+        search_ctx = format_search_results(search_res) if search_res else ""
+
+        # Memory Ball context
+        try:
+            from app.services.memory_ball import search as ball_search, format_for_prompt as ball_fmt
+            ball_hits = await asyncio.get_event_loop().run_in_executor(
+                None, ball_search, request.message, None, 4
+            )
+            if ball_hits:
+                ball_ctx = ball_fmt(ball_hits)
+                memory_ctx = (memory_ctx + "\n\n" + ball_ctx).strip() if memory_ctx else ball_ctx
+        except Exception:
+            pass
+
+        # Knowledge Graph context
+        try:
+            from app.services.knowledge_graph import search_nodes, format_for_prompt as kg_fmt
+            loop = asyncio.get_event_loop()
+            kg_nodes = await loop.run_in_executor(None, search_nodes, request.message, 3)
+            if kg_nodes:
+                kg_ctx = await loop.run_in_executor(None, kg_fmt, kg_nodes[0]["name"], 1)
+                if kg_ctx:
+                    memory_ctx = (memory_ctx + "\n\n" + kg_ctx).strip() if memory_ctx else kg_ctx
+        except Exception:
+            pass
+
+        raw_history = chat_service._get_history(project_id)
+        system_prompt = _load_system_prompt()
+
+        if is_simple:
+            recent = [{"role": m.role, "content": m.content} for m in raw_history[-8:]
+                      if m.role in ("user", "assistant")]
+            sys_content = system_prompt + (f"\n\n{memory_ctx}" if memory_ctx else "")
+            messages = (
+                [Message(role="system", content=sys_content, timestamp=ts())]
+                + [Message(role=m["role"], content=m["content"], timestamp=ts()) for m in recent]
+                + [Message(role="user", content=request.message, timestamp=ts())]
+            )
+        else:
+            managed = await build_managed_context(
+                full_history=raw_history,
+                user_message=request.message,
+                system_prompt=system_prompt,
+                memory_ctx=memory_ctx,
+                search_ctx=search_ctx,
+                ollama_base_url=_cfg.ollama_base_url,
+                small_model=_small_model,
+            )
+            messages = [
+                Message(role=m["role"], content=m["content"], timestamp=ts())
+                for m in managed_context_to_messages(managed)
+            ]
+
+        user_msg = Message(role="user", content=request.message, timestamp=ts())
+        chat_service.append_message(user_msg, project_id)
+
+        registry = get_registry()
+        tool_specs = registry.to_tool_specs()
+        collected = []
+
         active_messages = list(messages)
         run_tools = (not is_simple or request.force_tools) and tool_specs and hasattr(provider, "generate_with_tools")
         if run_tools:
@@ -246,10 +231,9 @@ async def stream_chat_message(request: ChatRequest):
             for _ in range(MAX_TOOL_ROUNDS):
                 content, tool_calls = await provider.generate_with_tools(
                     active_messages, tool_specs,
-                    model=chosen_model, num_ctx=ctx_limit,
+                    model=chosen_model, num_ctx=ctx_limit_use,
                 )
                 if not tool_calls:
-                    # Model answered directly — stream that content as tokens
                     if content:
                         for word in content.split(" "):
                             token = word + " "
@@ -257,28 +241,22 @@ async def stream_chat_message(request: ChatRequest):
                             yield f"data: {json.dumps({'token': token})}\n\n"
                     break
 
-                # Emit tool events to UI, execute each tool
                 yield f"data: {json.dumps({'tool_calls': [c['name'] for c in tool_calls]})}\n\n"
-
-                # Append assistant tool-call turn
                 active_messages.append(
                     Message(role="assistant", content=content or "", timestamp=ts())
                 )
                 for call in tool_calls:
                     result = await registry.run(call["name"], call.get("arguments", {}))
                     yield f"data: {json.dumps({'tool_result': {'name': call['name'], 'result': result[:200]}})}\n\n"
-                    # Append tool result as a user-role message (Ollama format)
                     active_messages.append(
                         Message(role="tool", content=result, timestamp=ts())
                     )
             else:
-                # Exceeded rounds — fall through to plain stream below
                 active_messages = list(messages)
 
-        # Stream final response (either after tool loop or no-tools fallback)
         if not collected:
             async for token in provider.stream_response(
-                active_messages, model=chosen_model, num_ctx=ctx_limit
+                active_messages, model=chosen_model, num_ctx=ctx_limit_use
             ):
                 collected.append(token)
                 yield f"data: {json.dumps({'token': token})}\n\n"
@@ -294,14 +272,18 @@ async def stream_chat_message(request: ChatRequest):
                 project_id=project_id,
             )
         )
-        # Memory Ball: extract + store named structured memories from this turn
-        asyncio.create_task(_ball_extract(request.message, full))
-        # Knowledge Graph: extract entity triples from this turn
-        asyncio.create_task(_kg_extract(request.message, full))
-        # Auto-feed into learning pipeline (observe -> clean -> label -> verify)
-        asyncio.create_task(_learning_ingest(request.message, full))
-        # Reflexion: evaluate quality async — doesn't block stream, logs + saves patterns
-        asyncio.create_task(_reflexion_observe(request.message, full, _cfg.ollama_base_url))
+
+        # Gate expensive background LLM tasks: every 5th message for extraction,
+        # every 10th for learning — prevents background Ollama calls from blocking
+        # the user's next request on the same instance.
+        if msg_n % 5 == 0:
+            asyncio.create_task(_ball_extract(request.message, full))
+            asyncio.create_task(_kg_extract(request.message, full))
+        if msg_n % 10 == 0:
+            asyncio.create_task(_learning_ingest(request.message, full))
+        # Reflexion intentionally disabled: it fires a full Ollama request after
+        # every message and competes with the user's next query.
+
         yield "data: [DONE]\n\n"
 
     return StreamingResponse(event_stream(), media_type="text/event-stream")

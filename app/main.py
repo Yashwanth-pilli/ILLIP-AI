@@ -1,5 +1,5 @@
 """
-Main FastAPI application
+ILLIP AI — Main FastAPI application
 """
 
 import os
@@ -45,26 +45,45 @@ async def lifespan(app: FastAPI):
     # Pre-warm default model in background
     asyncio.create_task(warmup_on_startup(settings.ollama_model, settings.ollama_base_url))
 
-    # Start Telegram bot if token is configured
+    # Start Telegram bot — wrapped so any crash (anyio/Python 3.14 compat) is non-fatal
     if settings.telegram_bot_token:
-        from app.connectors.telegram_bot import start_bot
-        asyncio.create_task(start_bot(settings.telegram_bot_token))
+        async def _safe_telegram():
+            try:
+                from app.connectors.telegram_bot import start_bot
+                await start_bot(settings.telegram_bot_token)
+            except Exception as _tg_err:
+                logger.warning(f"Telegram bot stopped (non-fatal): {_tg_err}")
+        asyncio.create_task(_safe_telegram())
         logger.info("Telegram bot queued for startup")
 
-    # Start all connectors (Discord, Slack, Email, n8n, WhatsApp, user-dropped)
-    from app.connectors.registry import get_connector_registry
-    registry = get_connector_registry()
-    asyncio.create_task(registry.start_all())
+    # Start all connectors — non-fatal
+    async def _safe_connectors():
+        try:
+            from app.connectors.registry import get_connector_registry
+            await get_connector_registry().start_all()
+        except Exception as e:
+            logger.warning(f"Connector registry error (non-fatal): {e}")
+    asyncio.create_task(_safe_connectors())
     logger.info("Connector registry starting all configured connectors")
 
-    # Start agent event bus
-    from app.agents.bus import get_bus
-    asyncio.create_task(get_bus().start())
+    # Start agent event bus — non-fatal
+    async def _safe_bus():
+        try:
+            from app.agents.bus import get_bus
+            await get_bus().start()
+        except Exception as e:
+            logger.warning(f"Agent bus error (non-fatal): {e}")
+    asyncio.create_task(_safe_bus())
     logger.info("Agent event bus started")
 
-    # Start scheduler (memory backup, health snapshots, KG cleanup)
-    from app.agents.scheduler_agent import get_scheduler
-    asyncio.create_task(get_scheduler().start())
+    # Start scheduler — non-fatal
+    async def _safe_scheduler():
+        try:
+            from app.agents.scheduler_agent import get_scheduler
+            await get_scheduler().start()
+        except Exception as e:
+            logger.warning(f"Scheduler error (non-fatal): {e}")
+    asyncio.create_task(_safe_scheduler())
     logger.info("SchedulerAgent started")
 
     yield
@@ -120,10 +139,12 @@ data_dir = settings.project_root / "data"
 data_dir.mkdir(exist_ok=True)
 app.mount("/data", StaticFiles(directory=str(data_dir)), name="data")
 
-# Serve frontend static files
-frontend_dir = settings.project_root / "frontend"
-if frontend_dir.exists():
-    app.mount("/", StaticFiles(directory=str(frontend_dir), html=True), name="frontend")
+# Serve frontend — Vite build output (dist/) takes priority, falls back to root
+_frontend_root = settings.project_root / "frontend"
+_frontend_dist  = _frontend_root / "dist"
+_serve_dir = _frontend_dist if _frontend_dist.exists() else _frontend_root
+if _serve_dir.exists():
+    app.mount("/", StaticFiles(directory=str(_serve_dir), html=True), name="frontend")
 
 
 if __name__ == "__main__":

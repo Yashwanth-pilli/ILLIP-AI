@@ -53,7 +53,7 @@ class ResearchAgent:
         Caller collects final "done" step for full result.
         """
         from app.services.chat_service import get_llm
-        from app.services.search_service import search
+        from app.services.search_service import web_search as search
         from app.services.browser_service import fetch_pages_parallel
 
         llm = get_llm()
@@ -148,7 +148,7 @@ class ResearchAgent:
 
     async def _search_one(self, query: str) -> list[dict]:
         try:
-            from app.services.search_service import search
+            from app.services.search_service import web_search as search
             results = await search(query)
             return results if isinstance(results, list) else []
         except Exception as e:

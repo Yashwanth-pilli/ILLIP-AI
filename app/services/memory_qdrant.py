@@ -12,6 +12,7 @@ Remembers every conversation across restarts.
 
 import asyncio
 import hashlib
+import re
 import sqlite3
 import time
 from pathlib import Path
@@ -78,10 +79,28 @@ def _fts_store(text: str, project_id: str, category: str = "chat") -> None:
         logger.error(f"FTS store failed: {e}")
 
 
+def _fts_query_syntax(query: str) -> str:
+    """
+    Build a safe FTS5 MATCH expression from free-form user text.
+    FTS5's query syntax treats ?, -, (, ), ", *, : as operators — a plain
+    natural-language question like "What's the plan?" is a syntax error if
+    passed raw. Extract word tokens and OR-quote them so any punctuation in
+    the original text is inert.
+    """
+    words = re.findall(r"[A-Za-z0-9]+", query)
+    if not words:
+        return ""
+    return " OR ".join(f'"{w}"' for w in words[:20])
+
+
 def _fts_search(query: str, project_id: str, top_k: int = 5) -> list[dict]:
+    match_expr = _fts_query_syntax(query)
+    if not match_expr:
+        return []
     try:
         conn = _fts_conn()
-        # FTS5 MATCH search — safe, no injection (parameterized)
+        # FTS5 MATCH search — safe, no injection (parameterized); match_expr
+        # is built from sanitized word tokens only, see _fts_query_syntax.
         rows = conn.execute(
             """
             SELECT text, rank
@@ -90,7 +109,7 @@ def _fts_search(query: str, project_id: str, top_k: int = 5) -> list[dict]:
             ORDER BY rank
             LIMIT ?
             """,
-            (project_id, query, top_k),
+            (project_id, match_expr, top_k),
         ).fetchall()
         conn.close()
         return [{"text": r[0], "score": max(0.0, 1.0 + r[1] / 10)} for r in rows]
