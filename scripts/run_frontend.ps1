@@ -1,34 +1,37 @@
-# PowerShell Script to Run Frontend
+# PowerShell Script to Run Frontend Dev Server (hot reload)
 # Run as: .\scripts\run_frontend.ps1
+#
+# For production, you don't need this — the backend serves the built
+# frontend from frontend/dist/ directly at http://127.0.0.1:8000/.
+# Use this only when actively editing frontend/src/ and want hot reload.
 
 $ErrorActionPreference = "Stop"
 
 Write-Host "========================================" -ForegroundColor Cyan
-Write-Host "ILLIP AI - Frontend Server" -ForegroundColor Cyan
+Write-Host "ILLIP AI - Frontend Dev Server (Vite)" -ForegroundColor Cyan
 Write-Host "========================================" -ForegroundColor Cyan
 Write-Host ""
 
-# Check if Python exists
-$python = Get-Command python -ErrorAction SilentlyContinue
-if (-not $python) {
-    Write-Host "ERROR: Python not found" -ForegroundColor Red
+$npm = Get-Command npm -ErrorAction SilentlyContinue
+if (-not $npm) {
+    Write-Host "ERROR: npm not found. Install Node.js first." -ForegroundColor Red
     exit 1
 }
 
-Write-Host "Starting frontend server..." -ForegroundColor Yellow
-Write-Host "Frontend will be available at: http://localhost:8080" -ForegroundColor Cyan
+Push-Location frontend
+
+if (-not (Test-Path "node_modules")) {
+    Write-Host "Installing frontend dependencies..." -ForegroundColor Yellow
+    npm install
+}
+
+Write-Host "Starting Vite dev server..." -ForegroundColor Yellow
+Write-Host "Frontend (hot reload) will be available at: http://localhost:3000" -ForegroundColor Cyan
+Write-Host "It proxies /api and /data to http://localhost:8000 — start the backend too." -ForegroundColor Gray
 Write-Host ""
 Write-Host "Press Ctrl+C to stop the server" -ForegroundColor Gray
 Write-Host ""
 
-# Start Python's built-in HTTP server
-Push-Location frontend
-python -m http.server 8080 --directory .
+npm run dev
 
-# Alternative: use PowerShell's built-in web server if available
-# $port = 8080
-# $address = "127.0.0.1"
-# $listener = New-Object System.Net.HttpListener
-# $listener.Prefixes.Add("http://$address`:$port/")
-# $listener.Start()
-# Write-Host "Listening on http://$address`:$port" -ForegroundColor Cyan
+Pop-Location

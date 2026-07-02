@@ -25,10 +25,16 @@ venv/
 env/
 ENV/
 .venv
-Include/
-Scripts/
-Lib/
+/Include/
+/Lib/
 pyvenv.cfg
+
+# Stray venv console-script shims that ended up inside the real scripts/ dir
+# (a pip install once landed its Scripts/ output here instead of a proper
+# venv — bare "Scripts/" would also match the real project scripts/ dir on
+# Windows' case-insensitive filesystem, so ignore the shims by name instead)
+scripts/*.exe
+scripts/pywin32_*.py
 
 # IDE
 .vscode/
@@ -69,6 +75,11 @@ data/projects/
 data/plugins/
 data/learning/
 data/telegram_owner.txt
+data/backups/
+data/health/
+
+# Node (frontend)
+node_modules/
 
 # OS
 Thumbs.db

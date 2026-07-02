@@ -1,5 +1,10 @@
-# PowerShell Script to Start Both Backend and Frontend
+# PowerShell Script to Start ILLIP AI (backend serves the built frontend too)
 # Run as: .\scripts\dev_start.ps1
+#
+# The backend mounts frontend/dist/ and serves the whole app from one port —
+# no separate frontend server needed. Run "cd frontend; npm run build" first
+# if frontend/dist/ is missing or stale. For hot-reload frontend dev, use
+# .\scripts\run_frontend.ps1 (Vite dev server) in a separate terminal instead.
 
 $ErrorActionPreference = "Stop"
 
@@ -40,53 +45,34 @@ $backendJob = Start-Process -FilePath "python" `
 
 Write-Host "✓ Backend started (PID: $($backendJob.Id))" -ForegroundColor Green
 
-# Wait for backend to start
-Write-Host "Waiting for backend to start..." -ForegroundColor Yellow
-Start-Sleep -Seconds 3
+if (-not (Test-Path "frontend\dist\index.html")) {
+    Write-Host ""
+    Write-Host "WARNING: frontend/dist/ not found — the app UI won't load." -ForegroundColor Yellow
+    Write-Host "Run: cd frontend; npm install; npm run build; cd .." -ForegroundColor Yellow
+}
 
 Write-Host ""
 Write-Host "========================================" -ForegroundColor Cyan
-Write-Host "Starting Frontend..." -ForegroundColor Yellow
-Write-Host "========================================" -ForegroundColor Cyan
-Write-Host "Frontend: http://localhost:8080" -ForegroundColor Green
-Write-Host ""
-
-# Start frontend in a new window
-$frontendJob = Start-Process -FilePath "python" `
-    -ArgumentList "-m", "http.server", "8080", "--directory", ".\frontend\" `
-    -WindowStyle Normal `
-    -PassThru
-
-Write-Host "✓ Frontend started (PID: $($frontendJob.Id))" -ForegroundColor Green
-
-Write-Host ""
-Write-Host "========================================" -ForegroundColor Cyan
-Write-Host "Both servers running!" -ForegroundColor Cyan
+Write-Host "ILLIP AI running!" -ForegroundColor Cyan
 Write-Host "========================================" -ForegroundColor Cyan
 Write-Host ""
 Write-Host "Services:" -ForegroundColor Yellow
-Write-Host "  Backend (API):  http://127.0.0.1:8000" -ForegroundColor White
+Write-Host "  App (UI + API): http://127.0.0.1:8000" -ForegroundColor White
 Write-Host "  API Docs:       http://127.0.0.1:8000/docs" -ForegroundColor White
-Write-Host "  Frontend (UI):  http://localhost:8080" -ForegroundColor White
 Write-Host ""
-Write-Host "To stop servers, close these windows or press Ctrl+C" -ForegroundColor Gray
+Write-Host "To stop, close the backend window or press Ctrl+C" -ForegroundColor Gray
 Write-Host ""
 
 # Wait for any key to exit
-Write-Host "Press any key to stop both servers..." -ForegroundColor Yellow
+Write-Host "Press any key to stop the server..." -ForegroundColor Yellow
 $null = $Host.UI.RawUI.ReadKey("NoEcho,IncludeKeyDown")
 
 Write-Host ""
-Write-Host "Stopping servers..." -ForegroundColor Yellow
+Write-Host "Stopping server..." -ForegroundColor Yellow
 
 try {
     Stop-Process -Id $backendJob.Id -Force -ErrorAction SilentlyContinue
     Write-Host "✓ Backend stopped" -ForegroundColor Green
-} catch { }
-
-try {
-    Stop-Process -Id $frontendJob.Id -Force -ErrorAction SilentlyContinue
-    Write-Host "✓ Frontend stopped" -ForegroundColor Green
 } catch { }
 
 Write-Host "Done!" -ForegroundColor Cyan

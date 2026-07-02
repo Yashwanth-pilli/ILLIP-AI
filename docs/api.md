@@ -17,7 +17,7 @@ Interactive docs:
 
 ## Frontend Integration
 
-The browser UI in `frontend/app.js` calls this API directly with `fetch()`. If you change one of these public endpoints, update the frontend and [docs/integration_flow.md](integration_flow.md) in the same change.
+The React UI in `frontend/src/api.js` calls this API directly with `fetch()`. If you change one of these public endpoints, update `frontend/src/api.js` and [docs/integration_flow.md](integration_flow.md) in the same change.
 
 ## Authentication
 

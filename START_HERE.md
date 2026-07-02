@@ -4,11 +4,11 @@ This guide gets ILLIP AI running and shows where to look first.
 
 ## What You Have
 
-ILLIP AI is a local-first assistant scaffold:
+ILLIP AI is a local-first AI assistant platform:
 
 - A FastAPI backend in `app/`
-- A plain browser frontend in `frontend/`
-- Five starter agents
+- A React (Vite) frontend in `frontend/src/`, built to `frontend/dist/` and served by the backend
+- 27 agents, Ghost Engine hardware-aware model routing, memory, skills, plugins, scheduler, governance
 - Local task, memory, chat, and log storage
 - Tests and docs for the main flows
 
@@ -19,33 +19,32 @@ No cloud account is required for the default mock provider.
 Open PowerShell in the project root:
 
 ```powershell
-cd C:\Users\ketha\OneDrive\Desktop\ILLIP_AI
 .\scripts\setup.ps1
 ```
 
-Start the backend:
+Build the frontend once (re-run after changing anything in `frontend/src/`):
+
+```powershell
+cd frontend; npm install; npm run build; cd ..
+```
+
+Start the backend — it serves the built frontend automatically:
 
 ```powershell
 .\scripts\run_backend.ps1
 ```
 
-Open a second PowerShell window and start the frontend:
-
-```powershell
-.\scripts\run_frontend.ps1
-```
-
 Open the app:
 
 ```text
-http://localhost:8080
+http://127.0.0.1:8000/
 ```
 
 ## Useful Local URLs
 
 | URL | What it shows |
 | --- | --- |
-| `http://localhost:8080` | Browser UI |
+| `http://127.0.0.1:8000/` | The app (React UI) |
 | `http://127.0.0.1:8000/docs` | Interactive API docs |
 | `http://127.0.0.1:8000/redoc` | Alternate API docs |
 | `http://127.0.0.1:8000/api/health` | Backend health check |
@@ -63,20 +62,19 @@ pytest -v
 
 ## How The Pieces Connect
 
-The frontend is small enough to trace by hand:
-
-1. `frontend/index.html` loads the page.
-2. `frontend/app.js` calls the backend API with `fetch()`.
+1. `frontend/dist/index.html` (built from `frontend/src/`) loads the React app.
+2. `frontend/src/api.js` calls the backend API with `fetch()`.
 3. FastAPI receives requests under `/api`.
 4. Route modules in `app/api/routes/` call services in `app/services/`.
 5. Services use agents, providers, SQLite, or JSON files as needed.
-6. The backend returns JSON and the frontend renders it.
+6. The backend returns JSON and React renders it.
 
 Read [docs/integration_flow.md](docs/integration_flow.md) for the full request map.
 
 ## Files To Read First
 
-- `frontend/app.js`: browser-to-backend calls
+- `frontend/src/App.jsx`: root component, state, and wiring
+- `frontend/src/api.js`: browser-to-backend calls
 - `app/main.py`: FastAPI application setup
 - `app/api/__init__.py`: route registration
 - `app/api/routes/chat.py`: chat endpoint example
@@ -87,7 +85,7 @@ Read [docs/integration_flow.md](docs/integration_flow.md) for the full request m
 ## Safety Notes
 
 - The default `mock` provider is safe for local learning and does not call an external model.
-- Keep API route changes synchronized with `frontend/app.js` and the docs.
+- Keep API route changes synchronized with `frontend/src/api.js` and the docs.
 - The self-building workflow should stay behind review, tests, and approval gates.
 - Do not store secrets in committed files. Use `.env` for local overrides.
 
@@ -105,7 +103,8 @@ netstat -ano | findstr :8000
 Frontend cannot reach backend:
 
 - Confirm the backend terminal is still running.
-- Confirm `frontend/app.js` points to `http://127.0.0.1:8000/api`.
+- Confirm `frontend/src/api.js` points to `http://127.0.0.1:8000/api` (it derives this from `window.location`, so it just works when served by the backend).
+- If you edited `frontend/src/`, re-run `npm run build` inside `frontend/` — the backend serves the last build in `frontend/dist/`.
 - Open browser dev tools with `F12` and check the Console tab.
 
 Import errors:

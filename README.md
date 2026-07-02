@@ -11,21 +11,20 @@ ILLIP AI is a portable, private, self-improving AI system that runs on your own 
 **Prerequisites:** Python 3.9+, PowerShell (Windows)
 
 ```powershell
-# Install and set up
+# Install and set up (also builds the frontend)
 .\scripts\setup.ps1
 
-# Start backend
+# Start the app — serves the UI and API from one port
 .\scripts\run_backend.ps1
-
-# Start frontend (second terminal)
-.\scripts\run_frontend.ps1
 ```
 
 | URL | What |
 |---|---|
-| `http://localhost:8080` | Browser UI |
+| `http://127.0.0.1:8000/` | The app (React UI) |
 | `http://127.0.0.1:8000/docs` | Interactive API docs |
 | `http://127.0.0.1:8000/api/health` | Health check |
+
+Editing the frontend? Run `.\scripts\run_frontend.ps1` for a hot-reload Vite dev server on `:3000` (proxies to the backend on `:8000`).
 
 ---
 
