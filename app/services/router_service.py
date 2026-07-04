@@ -10,10 +10,21 @@ from app.hardware.guard import read_hardware_state_async, HardwareState
 from app.config import settings
 from app.utils import logger
 
-_SMALL_FAMILIES = ["qwen2.5:3b", "qwen2.5:1.5b", "phi3:mini", "gemma2:2b", "llama3.2:3b"]
-_LARGE_FAMILIES = ["qwen2.5:7b", "qwen2.5:14b", "llama3.1:8b", "mistral:7b", "phi3:medium"]
-SMALL = "qwen2.5:3b"
-LARGE = "qwen2.5:7b"
+# Small = fast everyday model (full-GPU, snappy). Large = big-brain model for hard
+# tasks. Prefer MoE for LARGE: a 20-30B MoE activates only ~3-5B params per token,
+# so it thinks big but computes small — the only way a "big" model runs decently
+# on a low-end GPU. Dense 14B+ is intentionally NOT here (too cramped on 8GB).
+# Everyday driver = 7b: full-GPU, instant, always hot, holds persona. This is what
+# keeps ILLIP responsive. The big MoE (gpt-oss:20b) is NOT the auto-default — on
+# 8GB it can't stay hot alongside 7b, and its complex-pipeline TTFT is slow for
+# routine chat. It's reserved for explicit "Deep Think" (force_large / model pick),
+# where the user wants max intelligence and accepts the wait.
+# Brain = ornith:9b (5.6GB, full-GPU, built for agentic coding + terminal work).
+# Deep brain = gpt-oss:20b MoE (on-demand, 23 tok/s hybrid). qwen kept as fallback.
+_SMALL_FAMILIES = ["ornith:9b", "qwen2.5:7b", "llama3.1:8b", "mistral:7b"]
+_LARGE_FAMILIES = ["gpt-oss:20b", "ornith:9b", "qwen2.5:7b"]
+SMALL = "ornith:9b"
+LARGE = "gpt-oss:20b"
 
 def _detect_models() -> None:
     """Detect installed Ollama models and update SMALL/LARGE globals dynamically."""

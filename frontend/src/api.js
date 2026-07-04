@@ -9,6 +9,7 @@ export const api = {
   systemModels: () => fetch(`${BASE}/system/models`).then(r => r.json()),
   systemHardware: () => fetch(`${BASE}/system/hardware`).then(r => r.json()),
   systemHardwareLive: () => fetch(`${BASE}/system/hardware/live`).then(r => r.json()),
+  doctor: () => fetch(`${BASE}/system/doctor`).then(r => r.json()),
   switchModel: (model) => fetch(`${BASE}/system/models/switch`, {
     method: 'POST', headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ model }),
@@ -20,10 +21,18 @@ export const api = {
   }).then(r => r.json()),
 
   // Chat
-  chatStream: (payload) => fetch(`${BASE}/chat/stream`, {
+  chatStream: (payload, signal) => fetch(`${BASE}/chat/stream`, {
     method: 'POST', headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(payload),
+    body: JSON.stringify(payload), signal,
   }),
+  chatHistory: (projectId) =>
+    fetch(`${BASE}/chat/history?limit=50&project_id=${encodeURIComponent(projectId)}`).then(r => r.json()),
+  // Non-persisting one-shot (used by the arcade game-builder so it never
+  // clutters chat history). /v1 endpoint doesn't touch project history.
+  chatOnce: (message) => fetch(`${BASE.replace('/api','')}/v1/chat/completions`, {
+    method: 'POST', headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ model: 'illip', messages: [{ role: 'user', content: message }], stream: false }),
+  }).then(r => r.json()).then(d => ({ assistant_message: d.choices?.[0]?.message?.content || '' })),
 
   // Projects
   projects: () => fetch(`${BASE}/projects/`).then(r => r.json()),
@@ -105,6 +114,16 @@ export const api = {
     method: 'POST', headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ original_input, original_output, corrected_output: '' }),
   }),
+
+  // Terminal
+  terminalStatus: () => fetch(`${BASE}/terminal/status`).then(r => r.json()),
+  terminalRun: (command, confirm = false) => fetch(`${BASE}/terminal/run`, {
+    method: 'POST', headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ command, confirm }),
+  }).then(r => r.json()),
+
+  // Agent orchestration SSE URL
+  agentsRunUrl: (task) => `/api/agents/run/stream?task=${encodeURIComponent(task)}`,
 
   // Research SSE URL
   researchStreamUrl: (query, depth) =>

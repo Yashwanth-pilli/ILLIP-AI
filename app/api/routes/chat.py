@@ -290,11 +290,11 @@ async def stream_chat_message(request: ChatRequest):
 
 
 @router.get("/history")
-async def get_chat_history(limit: int = 50):
+async def get_chat_history(limit: int = 50, project_id: str = "default"):
     """Get chat history"""
     try:
         chat_service = get_chat_service()
-        history = chat_service.get_history(limit=limit)
+        history = chat_service.get_history(limit=limit, project_id=project_id)
         return {
             "messages": history,
             "count": len(history),

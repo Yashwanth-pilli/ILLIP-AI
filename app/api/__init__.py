@@ -31,6 +31,7 @@ from app.api.routes import (
     video_gen,
     scheduler,
     sync,
+    terminal,
 )
 
 # n8n, whatsapp routes — import separately (may not exist yet)
@@ -78,6 +79,7 @@ api_router.include_router(image_gen.router)
 api_router.include_router(video_gen.router)
 api_router.include_router(scheduler.router)
 api_router.include_router(sync.router)
+api_router.include_router(terminal.router)
 
 if _has_n8n:
     api_router.include_router(n8n_routes.router)

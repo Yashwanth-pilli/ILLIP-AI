@@ -4,6 +4,7 @@ import ResearchPanel from './ResearchPanel.jsx'
 import BrowserPanel from './BrowserPanel.jsx'
 import ImagePanel from './ImagePanel.jsx'
 import VideoPanel from './VideoPanel.jsx'
+import ArtifactPane from './ArtifactPane.jsx'
 
 export default function ChatMain({
   messages, isLoading, forceLarge, forceSearch, pressureBanner,
@@ -12,7 +13,8 @@ export default function ChatMain({
   researchOpen, researchDepth, researchSteps, researchAnswer, researchSources, isResearching,
   browserOpen, browserSteps, browserScreen, browserResult, isBrowsing,
   imagePanelOpen, videoPanelOpen, activeModel,
-  onChat, onToggleForceLarge, onToggleForceSearch, onMic, onSetPendingImage, onSetPendingDocument,
+  onChat, onStop, onRegenerate, onOpenArtifact, artifactHtml, onCloseArtifact, onOpenGames, onOpenTerminal,
+  onToggleForceLarge, onToggleForceSearch, onMic, onSetPendingImage, onSetPendingDocument,
   onStartResearch, onCloseResearch, onSetResearchDepth,
   onOpenBrowser, onCloseBrowser, onRunBrowser,
   onOpenImage, onCloseImage, onOpenVideo, onCloseVideo,
@@ -103,7 +105,13 @@ export default function ChatMain({
         messages={messages}
         onFeedback={onFeedback}
         onSpeak={onSpeak}
+        onRegenerate={onRegenerate}
+        onOpenArtifact={onOpenArtifact}
       />
+
+      {artifactHtml != null && (
+        <ArtifactPane html={artifactHtml} onClose={onCloseArtifact} />
+      )}
 
       <div className="input-area">
         {/* Pinned document — stays in context for every follow-up until cleared */}
@@ -145,6 +153,21 @@ export default function ChatMain({
             onClick={onOpenVideo}
             disabled={isLoading}
           >🎬 Video</button>
+          <button
+            className="action-btn game"
+            onClick={onOpenGames}
+          >🎮 Games</button>
+          <button
+            className="action-btn team"
+            onClick={() => { const g = inputValue.trim(); if (g) { onChat('/task ' + g); setInputValue('') } }}
+            disabled={isLoading}
+            title="Run your message through the agent company"
+          >🏢 Team</button>
+          <button
+            className="action-btn terminal"
+            onClick={onOpenTerminal}
+            title="Open a real terminal"
+          >▶ Terminal</button>
         </div>
 
         {/* Image preview */}
@@ -212,7 +235,7 @@ export default function ChatMain({
                 handleSubmit(e)
               }
             }}
-            placeholder="Message ILLIP AI… (Shift+Enter for a new line)"
+            placeholder="Message ILLIP… (Shift+Enter for a new line)"
             disabled={isLoading}
           />
           <button
@@ -228,9 +251,15 @@ export default function ChatMain({
             📎
             <input type="file" accept="image/*,application/pdf,.pdf" style={{display:'none'}} onChange={handleFileSelect} />
           </label>
-          <button type="submit" className="send-button" disabled={isLoading}>
-            {isLoading ? '…' : 'Send ▶'}
-          </button>
+          {isLoading ? (
+            <button type="button" className="send-button stop-button" onClick={onStop}>
+              ⏹ Stop
+            </button>
+          ) : (
+            <button type="submit" className="send-button">
+              Send ▶
+            </button>
+          )}
         </form>
 
         {voiceStatus && (

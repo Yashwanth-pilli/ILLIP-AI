@@ -9,13 +9,20 @@ Structure on disk:
 """
 
 import json
+import os
 import uuid
 import re
+import threading
 from pathlib import Path
 from datetime import datetime
 from typing import Optional
 from app.config import settings
 from app.utils import logger
+
+# Guards read-modify-write of the same JSON file against overlapping writers
+# (background LLM tasks can append while the next request is mid-write).
+# ponytail: one process-wide lock, fine for a local single-user app.
+_write_lock = threading.Lock()
 
 DEFAULT_PROJECT = "default"
 
@@ -59,7 +66,16 @@ def _read_json(path: Path, default):
 
 
 def _write_json(path: Path, data) -> None:
-    path.write_text(json.dumps(data, indent=2, ensure_ascii=False), encoding="utf-8")
+    """Atomic write: dump to a temp file, then os.replace. An interrupted or
+    overlapping write can never truncate the real file — the worst case is the
+    temp file is left behind, never a corrupt/empty history.json."""
+    payload = json.dumps(data, indent=2, ensure_ascii=False)
+    tmp = path.with_suffix(path.suffix + f".tmp{os.getpid()}")
+    with open(tmp, "w", encoding="utf-8") as f:
+        f.write(payload)
+        f.flush()
+        os.fsync(f.fileno())
+    os.replace(tmp, path)  # atomic on Windows + POSIX
 
 
 # ── Project CRUD ──────────────────────────────────────────────────────────────
@@ -111,7 +127,6 @@ def ensure_default_project() -> dict:
 
 def memory_store(project_id: str, key: str, value: str, category: str = "general") -> dict:
     path = _memory_path(project_id)
-    entries = _read_json(path, {})
     entry_id = str(uuid.uuid4())
     entry = {
         "id": entry_id,
@@ -121,8 +136,10 @@ def memory_store(project_id: str, key: str, value: str, category: str = "general
         "project_id": project_id,
         "created_at": datetime.now().isoformat(),
     }
-    entries[entry_id] = entry
-    _write_json(path, entries)
+    with _write_lock:
+        entries = _read_json(path, {})
+        entries[entry_id] = entry
+        _write_json(path, entries)
     return entry
 
 
@@ -157,10 +174,11 @@ def memory_stats(project_id: str) -> dict:
 
 def history_append(project_id: str, role: str, content: str) -> None:
     path = _history_path(project_id)
-    history = _read_json(path, [])
-    history.append({"role": role, "content": content, "ts": datetime.now().isoformat()})
-    # Keep last 200 messages on disk
-    _write_json(path, history[-200:])
+    with _write_lock:
+        history = _read_json(path, [])
+        history.append({"role": role, "content": content, "ts": datetime.now().isoformat()})
+        # Keep last 200 messages on disk
+        _write_json(path, history[-200:])
 
 
 def history_load(project_id: str, limit: int = 50) -> list[dict]:

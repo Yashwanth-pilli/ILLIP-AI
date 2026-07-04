@@ -136,6 +136,7 @@ async def get_hardware_live():
         except Exception:
             pass
 
+        from app.services.self_heal import recent_actions
         return {
             "cpu_percent":      s.cpu_percent,
             "ram_percent":      s.ram_percent,
@@ -148,6 +149,7 @@ async def get_hardware_live():
             "is_safe":          s.is_safe,
             "reason":           s.reason,
             "loaded_models":    loaded_models,
+            "heal_actions":     recent_actions()[-5:],
         }
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
@@ -328,6 +330,29 @@ async def _pre_warm_model(model: str, base_url: str, num_ctx: int) -> None:
         logger.info(f"Ghost pre-warm complete: {model} ctx={num_ctx}")
     except Exception as e:
         logger.debug(f"Ghost pre-warm failed (non-critical): {e}")
+
+
+@router.get("/doctor")
+async def system_doctor():
+    """One-shot diagnostics — Ollama, models, hardware, deps, disk, power. Read-only."""
+    from app.services.doctor import run_diagnostics, format_report
+    from app.services.self_heal import recent_actions
+    result = await run_diagnostics()
+    result["auto_heal_actions"] = recent_actions()[-5:]
+    result["report_md"] = format_report(result)
+    return result
+
+
+@router.post("/doctor/heal")
+async def system_doctor_heal():
+    """Run the self-healing doctor now: auto-fix Ollama/model problems. Safe actions only."""
+    from app.services.self_heal import heal, recent_actions
+    fixed = await heal(reason="manual")
+    return {
+        "fixed": fixed,
+        "recent_actions": recent_actions()[-10:],
+        "message": (f"Fixed {len(fixed)} issue(s)." if fixed else "No problems found — system healthy."),
+    }
 
 
 @router.get("/reflexion/stats")

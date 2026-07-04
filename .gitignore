@@ -97,3 +97,8 @@ htmlcov/
 .vscode/
 .idea/
 *.iml
+
+# Runtime workspaces (agent builds + terminal sandbox + vector store)
+data/agent_runs/
+data/terminal/
+data/qdrant/

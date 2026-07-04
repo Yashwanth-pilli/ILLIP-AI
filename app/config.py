@@ -22,7 +22,7 @@ class Settings(BaseSettings):
 
     # Ollama — local models
     ollama_base_url: str = "http://localhost:11434"
-    ollama_model: str = "llama3.2:3b"
+    ollama_model: str = "ornith:9b"  # Ornith-9B brain (agentic coding); startup auto-downgrades if it won't fit
     ollama_embed_model: str = "nomic-embed-text"  # used for vector memory embeddings
 
     # Generic OpenAI-compatible endpoint

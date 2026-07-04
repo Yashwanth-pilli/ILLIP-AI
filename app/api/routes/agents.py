@@ -2,7 +2,9 @@
 Agent endpoints
 """
 
-from fastapi import APIRouter, HTTPException, Body
+import json
+from fastapi import APIRouter, HTTPException, Body, Query
+from fastapi.responses import StreamingResponse
 from typing import Any, Dict
 from app.core import AgentListResponse
 from app.services import get_agent_service
@@ -10,6 +12,60 @@ from app.utils import logger
 import app.agents.sdk as agent_sdk
 
 router = APIRouter(prefix="/agents", tags=["agents"])
+
+
+@router.get("/run/stream")
+async def run_agents_stream(task: str = Query(..., description="The goal to run through the agent company")):
+    """Run a task through Planner + agents, streaming live progress via SSE.
+
+    Events: step_start (agent + what it's doing), plan (the full step list),
+    step_done (result summary), final (combined answer), end.
+    """
+    from app.services.agent_orchestrator import run_task_stream
+
+    async def gen():
+        try:
+            async for ev in run_task_stream(task):
+                yield f"data: {json.dumps(ev)}\n\n"
+        except Exception as e:
+            logger.error(f"Agent orchestration error: {e}")
+            yield f"data: {json.dumps({'type': 'error', 'message': str(e)})}\n\n"
+        yield 'data: {"type": "end"}\n\n'
+
+    return StreamingResponse(
+        gen(),
+        media_type="text/event-stream",
+        headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"},
+    )
+
+
+@router.get("/run/{run_id}/zip")
+async def download_run_zip(run_id: str):
+    """Zip up all files an agent run produced and return them as one download."""
+    import io
+    import re
+    import zipfile
+    from fastapi import HTTPException
+    from fastapi.responses import Response
+    from app.services.shell_service import WS_ROOT
+
+    if not re.fullmatch(r"run_\d+", run_id):  # no path traversal
+        raise HTTPException(400, "bad run id")
+    run_dir = (WS_ROOT / "agent_runs" / run_id).resolve()
+    if not str(run_dir).startswith(str(WS_ROOT.resolve())) or not run_dir.is_dir():
+        raise HTTPException(404, "run not found")
+
+    buf = io.BytesIO()
+    with zipfile.ZipFile(buf, "w", zipfile.ZIP_DEFLATED) as zf:
+        for p in run_dir.rglob("*"):
+            if p.is_file():
+                zf.write(p, p.relative_to(run_dir))
+    buf.seek(0)
+    return Response(
+        buf.getvalue(),
+        media_type="application/zip",
+        headers={"Content-Disposition": f'attachment; filename="{run_id}.zip"'},
+    )
 
 
 @router.get("/", response_model=AgentListResponse)

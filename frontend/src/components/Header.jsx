@@ -1,8 +1,30 @@
 import React from 'react'
 
+function SafetyBadge({ hwLive }) {
+  if (!hwLive || hwLive.gpu_temp_c == null) return null
+  const temp = hwLive.gpu_temp_c
+  const pressure = hwLive.pressure || 'low'
+  // Map pressure → colour + label. Temps here run ~40-55°C; 85°C is the hard limit.
+  const map = {
+    low:      { cls: 'safe',    dot: '🟢', label: 'Safe' },
+    medium:   { cls: 'warm',    dot: '🟡', label: 'Busy' },
+    high:     { cls: 'warm',    dot: '🟡', label: 'Warm' },
+    critical: { cls: 'hot',     dot: '🔴', label: 'Cooling' },
+  }
+  const s = map[pressure] || map.low
+  const title = temp > 0
+    ? `GPU ${temp.toFixed(0)}°C · limit 85°C · ${s.label}. ILLIP auto-throttles before it ever gets hot.`
+    : `${s.label} · running on CPU`
+  return (
+    <span className={`safety-badge ${s.cls}`} title={title}>
+      {s.dot} {temp > 0 ? `${temp.toFixed(0)}°C` : 'CPU'} · {s.label}
+    </span>
+  )
+}
+
 export default function Header({
   connected, statusText, modelsData, pinnedModel, ghostBadge,
-  dismissedSuggestion, projects, activeProject,
+  dismissedSuggestion, projects, activeProject, hwLive,
   onSwitchModel, onSwitchProject, onDismissSuggestion, onNewProject,
   onRefresh, onAutoSpeak, autoSpeak,
 }) {
@@ -61,7 +83,7 @@ export default function Header({
             </svg>
           </div>
           <div className="brand">
-            <span className="brand-name">ILLIP <span className="brand-ai">AI</span></span>
+            <span className="brand-name">ILLIP</span>
             <span className="brand-sub">Local · Private · Yours</span>
           </div>
         </div>
@@ -108,6 +130,7 @@ export default function Header({
         </div>
 
         <div className="header-right">
+          <SafetyBadge hwLive={hwLive} />
           <div className="header-status">
             <span className={`status-dot ${connected ? '' : 'offline'}`} />
             <span>{statusText}</span>

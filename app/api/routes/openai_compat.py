@@ -27,7 +27,7 @@ from typing import Optional
 
 from app.core import Message
 from app.providers import get_provider
-from app.utils import logger
+from app.utils import logger, get_current_timestamp
 
 router = APIRouter(prefix="/v1", tags=["openai-compat"])
 
@@ -59,15 +59,18 @@ def _make_chunk(content: str, model: str, finish: bool = False) -> str:
 
 @router.post("/chat/completions")
 async def chat_completions(req: OAIRequest):
-    provider = get_provider()
-    messages = [Message(role=m.role, content=m.content) for m in req.messages]
+    provider = await get_provider()
+    messages = [
+        Message(role=m.role, content=m.content, timestamp=get_current_timestamp())
+        for m in req.messages
+    ]
 
     if req.stream:
         async def event_stream():
             try:
                 # Generate full response then stream it token-by-token
                 # (real token streaming needs provider-level support — added when Ollama stream is wired)
-                response = await provider.generate_response(
+                response = await provider.safe_generate(
                     messages=messages,
                     temperature=req.temperature,
                     max_tokens=req.max_tokens,
@@ -88,7 +91,7 @@ async def chat_completions(req: OAIRequest):
 
     # Non-streaming
     try:
-        response = await provider.generate_response(
+        response = await provider.safe_generate(
             messages=messages,
             temperature=req.temperature,
             max_tokens=req.max_tokens,

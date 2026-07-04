@@ -10,8 +10,29 @@ import InstallSkillDialog from './components/dialogs/InstallSkillDialog.jsx'
 import NewProjectDialog from './components/dialogs/NewProjectDialog.jsx'
 import CreateJobModal from './components/dialogs/CreateJobModal.jsx'
 import MarketplaceModal from './components/dialogs/MarketplaceModal.jsx'
+import Toasts from './components/Toasts.jsx'
+import GamesModal from './components/dialogs/GamesModal.jsx'
+import AgentsRunPanel from './components/AgentsRunPanel.jsx'
+import TerminalPanel from './components/TerminalPanel.jsx'
 
 marked.setOptions({ breaks: true, gfm: true })
+
+// Wrap every code block with a header + copy button. ponytail: no highlight.js
+// dep — copy covers the common need; syntax colors are marginal polish.
+const _renderer = new marked.Renderer()
+const _PREVIEWABLE = new Set(['html', 'svg', 'xml', 'htm'])
+// marked v12 passes positional args (code, infostring), not an object.
+_renderer.code = (code, infostring) => {
+  const lang = (infostring || '').trim().split(/\s+/)[0]
+  const escaped = String(code).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+  const label = lang || 'code'
+  const preview = _PREVIEWABLE.has(lang.toLowerCase())
+    ? `<button class="preview-btn" type="button">▶ Preview</button>` : ''
+  return `<div class="code-block"><div class="code-head"><span class="code-lang">${label}</span>` +
+    `<span>${preview}<button class="copy-btn" type="button">Copy</button></span></div>` +
+    `<pre><code>${escaped}</code></pre></div>`
+}
+marked.setOptions({ renderer: _renderer })
 
 export default function App() {
   // ── Connection ──────────────────────────────────────────────────────────────
@@ -83,6 +104,9 @@ export default function App() {
   const [imagePanelOpen, setImagePanelOpen] = useState(false)
   const [videoPanelOpen, setVideoPanelOpen] = useState(false)
 
+  // ── Artifact (live HTML/SVG preview) ──────────────────────────────────────────
+  const [artifactHtml, setArtifactHtml] = useState(null)
+
   // ── Dialogs ─────────────────────────────────────────────────────────────────
   const [pluginDialogOpen, setPluginDialogOpen] = useState(false)
   const [installSkillOpen, setInstallSkillOpen] = useState(false)
@@ -90,8 +114,32 @@ export default function App() {
   const [createJobOpen, setCreateJobOpen] = useState(false)
   const [marketplaceOpen, setMarketplaceOpen] = useState(false)
 
+  // ── Toasts ────────────────────────────────────────────────────────────────────
+  const [toasts, setToasts] = useState([])
+  const seenHealRef = useRef(0)  // latest heal-action timestamp already shown
+
+  const pushToast = useCallback((msg, kind = 'info', icon = '🔧') => {
+    const id = Date.now() + Math.random()
+    setToasts(prev => [...prev, { id, msg, kind, icon }])
+    setTimeout(() => setToasts(prev => prev.filter(t => t.id !== id)), 6000)
+  }, [])
+
+  // ── Games ─────────────────────────────────────────────────────────────────────
+  const [gamesOpen, setGamesOpen] = useState(false)
+
+  // ── Agent company (live orchestration) ────────────────────────────────────────
+  const [agentTask, setAgentTask] = useState(null)
+
+  // ── Terminal ──────────────────────────────────────────────────────────────────
+  const [terminalOpen, setTerminalOpen] = useState(false)
+
   // ── Helpers ─────────────────────────────────────────────────────────────────
   const activeModelRef = useRef('')
+  const abortRef = useRef(null)
+
+  const stopGeneration = useCallback(() => {
+    if (abortRef.current) abortRef.current.abort()
+  }, [])
 
   const addMessage = useCallback((role, content, extra = {}) => {
     setMessages(prev => [...prev, { id: Date.now() + Math.random(), role, content, ...extra }])
@@ -129,8 +177,26 @@ export default function App() {
   }, [])
 
   const loadHwLive = useCallback(async () => {
-    try { setHwLive(await api.systemHardwareLive()) } catch {}
-  }, [])
+    try {
+      const d = await api.systemHardwareLive()
+      setHwLive(d)
+      // Surface any NEW self-heal actions as a toast (auto-fixed heads-up)
+      const heals = d.heal_actions || []
+      const labels = {
+        ollama_started: 'Ollama was down — auto-restarted it ✓',
+        ollama_recovered: 'Ollama back online ✓',
+        model_switched: 'Switched to a model that fits your hardware ✓',
+        ollama_start_failed: 'Tried to restart Ollama (needs attention)',
+      }
+      for (const h of heals) {
+        if (h.ts > seenHealRef.current) {
+          seenHealRef.current = h.ts
+          const msg = labels[h.action] || `Auto-fixed: ${h.action}`
+          pushToast(msg, h.action.includes('fail') ? 'warn' : 'ok', '🔧')
+        }
+      }
+    } catch {}
+  }, [pushToast])
 
   const loadModels = useCallback(async () => {
     try {
@@ -202,6 +268,16 @@ export default function App() {
     } catch {}
   }, [])
 
+  const loadChatHistory = useCallback(async (projectId) => {
+    try {
+      const d = await api.chatHistory(projectId)
+      const msgs = (d.messages || [])
+        .filter(m => m.role === 'user' || m.role === 'assistant')
+        .map((m, i) => ({ id: `h${i}`, role: m.role, content: m.content }))
+      setMessages(msgs)
+    } catch {}
+  }, [])
+
   useEffect(() => {
     // Initial load
     checkHealth()
@@ -218,6 +294,7 @@ export default function App() {
     loadProjects()
     loadHwLive()
     initVoice()
+    loadChatHistory('default')
 
     // Polling
     const intervals = [
@@ -268,6 +345,41 @@ export default function App() {
 
   // ── Chat ────────────────────────────────────────────────────────────────────
   const handleChat = useCallback(async (message, imageFile = null, docFile = null) => {
+    // Slash command: /game — open the arcade. No LLM call.
+    if (typeof message === 'string' && message.trim().toLowerCase() === '/game') {
+      setGamesOpen(true)
+      return
+    }
+
+    // Slash command: /terminal — open the terminal. No LLM call.
+    if (typeof message === 'string' && message.trim().toLowerCase() === '/terminal') {
+      setTerminalOpen(true)
+      return
+    }
+
+    // Slash command: /task <goal> — run it through the agent company, live.
+    if (typeof message === 'string' && message.trim().toLowerCase().startsWith('/task')) {
+      const goal = message.trim().slice(5).trim()
+      if (goal) { addMessage('user', `/task ${goal}`); setAgentTask(goal) }
+      else addMessage('assistant', 'Give me a goal: `/task build a landing page for a coffee shop`')
+      return
+    }
+
+    // Slash command: /doctor — run diagnostics, render inline. No LLM call.
+    if (typeof message === 'string' && message.trim().toLowerCase() === '/doctor') {
+      addMessage('user', '/doctor')
+      addMessage('assistant', '🩺 Running diagnostics…')
+      try {
+        const d = await api.doctor()
+        setMessages(prev => prev.slice(0, -1))
+        addMessage('assistant', d.report_md || 'No report returned.', { done: true })
+      } catch (e) {
+        setMessages(prev => prev.slice(0, -1))
+        addMessage('assistant', `**Doctor failed:** ${e.message}`)
+      }
+      return
+    }
+
     // Show user message immediately
     if (docFile) {
       addMessage('user', `📄 ${docFile.name}${message ? ' — ' + message : ''}`)
@@ -332,7 +444,9 @@ export default function App() {
         force_search: forceSearch,
         project_id: activeProject,
       }
-      const res = await api.chatStream(payload)
+      const controller = new AbortController()
+      abortRef.current = controller
+      const res = await api.chatStream(payload, controller.signal)
       setMessages(prev => prev.filter(m => m.id !== thinkingId))
 
       if (!res.ok) {
@@ -403,11 +517,27 @@ export default function App() {
 
     } catch (e) {
       setMessages(prev => prev.filter(m => m.id !== thinkingId))
-      addMessage('assistant', `**Connection error:** ${e.message}`)
+      if (e.name !== 'AbortError') {
+        addMessage('assistant', `**Connection error:** ${e.message}`)
+      }
     } finally {
+      abortRef.current = null
       setIsLoading(false)
     }
   }, [pinnedModel, forceLarge, forceSearch, activeProject, autoSpeak, addMessage, activeDocument])
+
+  // ── Regenerate ────────────────────────────────────────────────────────────────
+  const regenerate = useCallback(() => {
+    if (isLoading) return
+    const lastUser = [...messages].reverse().find(m => m.role === 'user')
+    if (!lastUser) return
+    // Drop the trailing assistant reply so the new one takes its place
+    setMessages(prev => {
+      const idx = prev.map(m => m.role).lastIndexOf('assistant')
+      return idx === -1 ? prev : prev.slice(0, idx)
+    })
+    handleChat(lastUser.content)
+  }, [messages, isLoading]) // eslint-disable-line
 
   // ── TTS ─────────────────────────────────────────────────────────────────────
   const speakText = useCallback((text) => {
@@ -624,10 +754,11 @@ export default function App() {
         dismissedSuggestion={dismissedSuggestion}
         projects={projects}
         activeProject={activeProject}
+        hwLive={hwLive}
         onSwitchModel={switchModel}
         onSwitchProject={(id) => {
           setActiveProject(id)
-          setMessages([{ id: Date.now(), role: 'assistant', content: `Switched to project **${id}**.` }])
+          loadChatHistory(id)
         }}
         onDismissSuggestion={() => setDismissedSuggestion(true)}
         onNewProject={() => setNewProjectOpen(true)}
@@ -704,6 +835,13 @@ export default function App() {
           videoPanelOpen={videoPanelOpen}
           activeModel={activeModelRef.current}
           onChat={handleChat}
+          onStop={stopGeneration}
+          onRegenerate={regenerate}
+          onOpenArtifact={setArtifactHtml}
+          artifactHtml={artifactHtml}
+          onCloseArtifact={() => setArtifactHtml(null)}
+          onOpenGames={() => setGamesOpen(true)}
+          onOpenTerminal={() => setTerminalOpen(true)}
           onToggleForceLarge={() => setForceLarge(p => !p)}
           onToggleForceSearch={() => setForceSearch(p => !p)}
           onMic={toggleMic}
@@ -778,6 +916,11 @@ export default function App() {
           }}
         />
       )}
+      {gamesOpen && <GamesModal onClose={() => setGamesOpen(false)} />}
+      {agentTask && <AgentsRunPanel task={agentTask} onClose={() => setAgentTask(null)} />}
+      {terminalOpen && <TerminalPanel onClose={() => setTerminalOpen(false)} />}
+
+      <Toasts toasts={toasts} onDismiss={(id) => setToasts(prev => prev.filter(t => t.id !== id))} />
     </div>
   )
 }

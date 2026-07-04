@@ -12,6 +12,7 @@ from app.skills.builtin.pdf_reader import PDFReaderSkill
 from app.skills.builtin.github_search import GitHubSearchSkill
 from app.skills.builtin.package_installer import PackageInstallerSkill
 from app.skills.builtin.vision_skill import VisionSkill
+from app.skills.builtin.shell_skill import ShellSkill
 
 
 def _register_builtins() -> None:
@@ -25,6 +26,7 @@ def _register_builtins() -> None:
     reg.register(GitHubSearchSkill())
     reg.register(PackageInstallerSkill())
     reg.register(VisionSkill())
+    reg.register(ShellSkill())
 
 
 _register_builtins()
