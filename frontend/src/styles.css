@@ -1114,3 +1114,11 @@ body {
   .tab-action-btn, .ws-tab { min-height: 36px; }
   .mem-del-btn, .ws-task-check { min-width: 32px; min-height: 32px; }
 }
+
+/* ── Clarify phase (loop mode) ─────────────────────────────────────── */
+.agents-clarify { margin: 10px 0; padding: 10px; background: #15171c; border: 1px solid rgba(255,255,255,0.1); border-radius: 8px; }
+.agents-clarify-label { font-size: 12px; color: var(--cyan); margin-bottom: 8px; }
+.agents-clarify-q { margin-bottom: 8px; }
+.agents-clarify-q label { display: block; font-size: 12px; color: #d7dade; margin-bottom: 3px; }
+.agents-clarify-q input { width: 100%; }
+.agents-clarify-btns { display: flex; gap: 8px; margin-top: 10px; }

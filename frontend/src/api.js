@@ -148,6 +148,21 @@ export const api = {
 
   // Agent orchestration SSE URL
   agentsRunUrl: (task) => `/api/agents/run/stream?task=${encodeURIComponent(task)}`,
+  agentsLoopUrl: (task, maxLoops = 3) => `/api/agents/loop/stream?task=${encodeURIComponent(task)}&max_loops=${maxLoops}`,
+  agentsClarify: (task) => fetch(`${BASE}/agents/clarify?task=${encodeURIComponent(task)}`).then(r => r.json()),
+  // Upload ANY file (any size) with progress callback. XHR because fetch has no upload progress.
+  uploadFile: (file, onProgress) => new Promise((resolve, reject) => {
+    const xhr = new XMLHttpRequest()
+    const form = new FormData()
+    form.append('file', file)
+    xhr.open('POST', `${BASE}/workspace/upload`)
+    xhr.upload.onprogress = (e) => { if (e.lengthComputable && onProgress) onProgress(Math.round(e.loaded / e.total * 100)) }
+    xhr.onload = () => {
+      try { resolve(JSON.parse(xhr.responseText)) } catch { reject(new Error('bad response')) }
+    }
+    xhr.onerror = () => reject(new Error('upload failed'))
+    xhr.send(form)
+  }),
 
   // Research SSE URL
   researchStreamUrl: (query, depth) =>

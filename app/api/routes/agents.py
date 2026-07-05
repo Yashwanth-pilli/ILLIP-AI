@@ -39,6 +39,63 @@ async def run_agents_stream(task: str = Query(..., description="The goal to run 
     )
 
 
+@router.get("/clarify")
+async def clarify_task(task: str = Query(..., description="Goal to generate clarifying questions for")):
+    """Ask 2-4 clarifying questions BEFORE building (how top models work).
+    Returns {questions: [...]}. Empty list means the goal is clear enough."""
+    from app.agents import get_agent_registry
+    registry = get_agent_registry()
+    agent = registry.get_agent("planner") or registry.get_agent("ceo")
+    prompt = (
+        "A user wants an AI agent team to do this task:\n"
+        f"\"{task[:1200]}\"\n\n"
+        "Before starting, what do you need to know? Write 2-4 SHORT clarifying "
+        "questions that would change how you build it (scope, style, target, "
+        "constraints). If the task is already fully clear, return an empty array.\n"
+        "Reply with ONLY a JSON array of question strings, e.g. "
+        '["What platform?", "Dark or light theme?"]'
+    )
+    questions: list[str] = []
+    try:
+        res = await agent.execute_task(prompt)
+        text = res.get("output", "") if res.get("status") == "success" else ""
+        m = __import__("re").search(r"\[.*?\]", text, __import__("re").DOTALL)
+        if m:
+            raw = json.loads(m.group(0))
+            questions = [str(q).strip() for q in raw if str(q).strip()][:4]
+    except Exception as e:
+        logger.warning(f"Clarify failed: {e}")
+    return {"task": task, "questions": questions}
+
+
+@router.get("/loop/stream")
+async def run_agents_loop_stream(
+    task: str = Query(..., description="The goal to loop on until QA passes"),
+    max_loops: int = Query(3, ge=1, le=5),
+):
+    """Agentic LOOP: run crew -> QA verdict -> retry with feedback until done.
+
+    Extra events vs /run/stream: loop_start {loop,max,feedback},
+    loop_check {loop,done,feedback}, loop_end {loops_used,done}.
+    """
+    from app.services.agent_orchestrator import run_task_loop_stream
+
+    async def gen():
+        try:
+            async for ev in run_task_loop_stream(task, max_loops):
+                yield f"data: {json.dumps(ev)}\n\n"
+        except Exception as e:
+            logger.error(f"Agent loop error: {e}")
+            yield f"data: {json.dumps({'type': 'error', 'message': str(e)})}\n\n"
+        yield 'data: {"type": "end"}\n\n'
+
+    return StreamingResponse(
+        gen(),
+        media_type="text/event-stream",
+        headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"},
+    )
+
+
 @router.get("/run/{run_id}/zip")
 async def download_run_zip(run_id: str):
     """Zip up all files an agent run produced and return them as one download."""

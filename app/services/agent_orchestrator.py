@@ -294,6 +294,80 @@ async def run_task_stream(task: str) -> AsyncGenerator[dict, None]:
            "files": all_files, "run_id": run_id}
 
 
+# ═══════════════════════════════════════════════════════════════════════════
+# Loop methodology — plan → act → check → retry until the goal is actually met
+# ═══════════════════════════════════════════════════════════════════════════
+
+_CHECK_PROMPT = (
+    "You are a strict QA reviewer. Decide if the work output below actually satisfies "
+    "the goal. Reply with ONLY a JSON object, nothing else:\n"
+    '{"done": true/false, "feedback": "if not done: what exactly is missing or wrong, '
+    'concrete and actionable. if done: empty string"}\n\n'
+    "GOAL:\n{goal}\n\nWORK OUTPUT:\n{output}\n"
+)
+
+
+def parse_verdict(text: str) -> tuple[bool, str]:
+    """Extract {done, feedback} from the checker's reply. Defaults to done=True on
+    unparseable output so a flaky checker can't loop forever."""
+    m = re.search(r"\{.*?\}", text, re.DOTALL)
+    if m:
+        try:
+            d = json.loads(m.group(0))
+            return bool(d.get("done", True)), str(d.get("feedback", ""))[:1000]
+        except Exception:
+            pass
+    low = text.lower()
+    if any(w in low for w in ("not done", "incomplete", "missing", "fails", "does not satisfy")):
+        return False, text.strip()[:1000]
+    return True, ""
+
+
+async def run_task_loop_stream(task: str, max_loops: int = 3) -> AsyncGenerator[dict, None]:
+    """Agentic loop: run the crew, have a reviewer verdict the result against the
+    goal, feed the feedback into a retry. Stops on done or max_loops."""
+    max_loops = max(1, min(int(max_loops), 5))
+    registry = get_agent_registry()
+    feedback = ""
+    done = False
+    loop_n = 0
+    final_ev: Optional[dict] = None
+
+    for loop_n in range(1, max_loops + 1):
+        yield {"type": "loop_start", "loop": loop_n, "max": max_loops,
+               "feedback": feedback}
+        current = task if not feedback else (
+            f"{task}\n\nA previous attempt was rejected by QA. "
+            f"Fix these specific problems:\n{feedback}"
+        )
+        final_ev = None
+        async for ev in run_task_stream(current):
+            ev["loop"] = loop_n
+            if ev.get("type") == "final":
+                final_ev = ev
+            yield ev
+
+        result_text = (final_ev or {}).get("result", "")
+        checker = registry.get_agent("reviewer") or registry.get_agent("qa") \
+            or registry.get_agent("planner")
+        try:
+            cres = await checker.execute_task(
+                _CHECK_PROMPT.replace("{goal}", task[:1500])
+                             .replace("{output}", result_text[:4000])
+            )
+            verdict_text = cres.get("output", "") if cres.get("status") == "success" else ""
+        except Exception as e:
+            logger.warning(f"Loop checker failed: {e}")
+            verdict_text = ""
+        done, feedback = parse_verdict(verdict_text)
+        yield {"type": "loop_check", "loop": loop_n, "done": done,
+               "feedback": feedback}
+        if done:
+            break
+
+    yield {"type": "loop_end", "loops_used": loop_n, "done": done}
+
+
 if __name__ == "__main__":
     # ponytail self-check: the plan parser is the only tricky logic.
     av = {"research", "builder", "reviewer", "code"}
@@ -303,6 +377,12 @@ if __name__ == "__main__":
     assert len(n) == 2 and n[0]["agent"] == "research", n
     f = parse_plan("just do it", av)
     assert len(f) == 1, f
+    # Verdict parser self-check
+    assert parse_verdict('{"done": true, "feedback": ""}') == (True, "")
+    assert parse_verdict('blah {"done": false, "feedback": "missing tests"} blah') == (False, "missing tests")
+    assert parse_verdict("The work is incomplete, missing the CSS")[0] is False
+    assert parse_verdict("looks good to me")[0] is True
+    assert parse_verdict("")[0] is True  # unparseable -> stop looping
     # File extraction self-check
     import tempfile
     d = Path(tempfile.mkdtemp())

@@ -13,6 +13,7 @@ from app.skills.builtin.github_search import GitHubSearchSkill
 from app.skills.builtin.package_installer import PackageInstallerSkill
 from app.skills.builtin.vision_skill import VisionSkill
 from app.skills.builtin.shell_skill import ShellSkill
+from app.skills.builtin.computer_skill import OpenAppSkill, FindFilesSkill, ReadAnywhereSkill
 
 
 def _register_builtins() -> None:
@@ -27,6 +28,9 @@ def _register_builtins() -> None:
     reg.register(PackageInstallerSkill())
     reg.register(VisionSkill())
     reg.register(ShellSkill())
+    reg.register(OpenAppSkill())
+    reg.register(FindFilesSkill())
+    reg.register(ReadAnywhereSkill())
 
 
 _register_builtins()

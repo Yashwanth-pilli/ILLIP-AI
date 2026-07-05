@@ -868,25 +868,77 @@ async def workspace_explain_project():
         ) from exc
 
 
-@router.post("/upload", response_model=WorkspaceUploadResponse)
-async def upload_workspace(file: UploadFile = File(...)):
-    """Upload a workspace file"""
+def _safe_upload_name(name: str) -> str:
+    import re as _re
+    name = (name or "uploaded_file").replace("\\", "/").split("/")[-1]
+    return _re.sub(r"[^\w. ()\[\]-]", "_", name)[:150] or "uploaded_file"
+
+
+def _extract_zip_safe(zip_path: Path, dest: Path) -> list[str]:
+    """Extract a zip, refusing path-traversal entries. Returns extracted names."""
+    import zipfile
+    extracted: list[str] = []
+    dest.mkdir(parents=True, exist_ok=True)
+    with zipfile.ZipFile(zip_path) as z:
+        for info in z.infolist():
+            target = (dest / info.filename).resolve()
+            if not str(target).startswith(str(dest.resolve())):
+                continue  # zip-slip entry — skip
+            z.extract(info, dest)
+            if not info.is_dir():
+                extracted.append(info.filename)
+    return extracted
+
+
+@router.post("/upload")
+async def upload_workspace(file: UploadFile = File(...), extract: bool = Query(True)):
+    """Upload ANY file, any size. Streams to disk in chunks (no RAM limit).
+    Zip files are auto-extracted into a folder named after the archive."""
     workspace_path = settings.get_workspaces_path()
+    workspace_path.mkdir(parents=True, exist_ok=True)
 
-    filename = file.filename or "uploaded_file"
+    filename = _safe_upload_name(file.filename)
     save_path = workspace_path / filename
+    # Never overwrite: report_2.pdf, report_3.pdf, ...
+    if save_path.exists():
+        stem, dot, ext = filename.rpartition(".")
+        n = 2
+        while save_path.exists():
+            filename = f"{stem}_{n}.{ext}" if dot else f"{filename}_{n}"
+            save_path = workspace_path / filename
+            n += 1
 
-    contents = await file.read()
+    size = 0
+    try:
+        with open(save_path, "wb") as f:
+            while chunk := await file.read(8 * 1024 * 1024):  # 8 MB chunks
+                f.write(chunk)
+                size += len(chunk)
+    except Exception as exc:
+        try:
+            save_path.unlink()
+        except Exception:
+            pass
+        raise HTTPException(status_code=500, detail=f"Upload failed: {exc}") from exc
 
-    with open(save_path, "wb") as f:
-        f.write(contents)
+    extracted: list[str] = []
+    if extract and filename.lower().endswith(".zip"):
+        try:
+            extract_dir = workspace_path / filename.rsplit(".", 1)[0]
+            extracted = _extract_zip_safe(save_path, extract_dir)
+        except Exception as exc:
+            # keep the zip itself even if extraction fails
+            extracted = [f"(extract failed: {exc})"]
 
-    return WorkspaceUploadResponse(
-        filename=filename,
-        saved_path=str(save_path),
-        uploaded_at=datetime.now(),
-        status="uploaded",
-    )
+    return {
+        "filename": filename,
+        "saved_path": str(save_path),
+        "size_bytes": size,
+        "extracted_files": extracted[:200],
+        "extracted_count": len([e for e in extracted if not e.startswith("(")]),
+        "uploaded_at": datetime.now().isoformat(),
+        "status": "uploaded",
+    }
 
 
 # ── WorkspaceService intelligence endpoints ──────────────────────────────────

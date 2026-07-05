@@ -14,7 +14,7 @@ export default function ChatMain({
   browserOpen, browserSteps, browserScreen, browserResult, isBrowsing,
   imagePanelOpen, videoPanelOpen, activeModel,
   onChat, onStop, onRegenerate, onOpenArtifact, artifactHtml, onCloseArtifact, onOpenGames, onOpenTerminal,
-  onToggleForceLarge, onToggleForceSearch, onMic, onSetPendingImage, onSetPendingDocument,
+  onToggleForceLarge, onToggleForceSearch, onMic, onSetPendingImage, onSetPendingDocument, onUploadFile,
   onStartResearch, onCloseResearch, onSetResearchDepth,
   onOpenBrowser, onCloseBrowser, onRunBrowser,
   onOpenImage, onCloseImage, onOpenVideo, onCloseVideo,
@@ -88,9 +88,14 @@ export default function ChatMain({
       onSetPendingDocument({ file })
       return
     }
-    const reader = new FileReader()
-    reader.onload = ev => onSetPendingImage({ file, dataUrl: ev.target.result })
-    reader.readAsDataURL(file)
+    if (file.type.startsWith('image/')) {
+      const reader = new FileReader()
+      reader.onload = ev => onSetPendingImage({ file, dataUrl: ev.target.result })
+      reader.readAsDataURL(file)
+      return
+    }
+    // Anything else — zip, video, csv, exe, whatever, any size → workspace upload
+    onUploadFile && onUploadFile(file)
   }
 
   return (
@@ -247,9 +252,9 @@ export default function ChatMain({
           >
             {isRecording ? '⏹' : '🎤'}
           </button>
-          <label className="img-btn" title="Attach image or PDF">
+          <label className="img-btn" title="Attach any file — images, PDFs, zips, anything, any size">
             📎
-            <input type="file" accept="image/*,application/pdf,.pdf" style={{display:'none'}} onChange={handleFileSelect} />
+            <input type="file" style={{display:'none'}} onChange={handleFileSelect} />
           </label>
           {isLoading ? (
             <button type="button" className="send-button stop-button" onClick={onStop}>

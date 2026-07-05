@@ -357,10 +357,18 @@ export default function App() {
       return
     }
 
+    // Slash command: /loop <goal> — agent company loops until QA passes.
+    if (typeof message === 'string' && message.trim().toLowerCase().startsWith('/loop')) {
+      const goal = message.trim().slice(5).trim()
+      if (goal) { addMessage('user', `/loop ${goal}`); setAgentTask({ goal, loop: true }) }
+      else addMessage('assistant', 'Give me a goal: `/loop build a snake game and make sure it runs`')
+      return
+    }
+
     // Slash command: /task <goal> — run it through the agent company, live.
     if (typeof message === 'string' && message.trim().toLowerCase().startsWith('/task')) {
       const goal = message.trim().slice(5).trim()
-      if (goal) { addMessage('user', `/task ${goal}`); setAgentTask(goal) }
+      if (goal) { addMessage('user', `/task ${goal}`); setAgentTask({ goal, loop: false }) }
       else addMessage('assistant', 'Give me a goal: `/task build a landing page for a coffee shop`')
       return
     }
@@ -848,6 +856,28 @@ export default function App() {
           onMic={toggleMic}
           onSetPendingImage={setPendingImage}
           onSetPendingDocument={setPendingDocument}
+          onUploadFile={async (file) => {
+            const mb = (file.size / 1048576).toFixed(1)
+            addMessage('user', `📎 Uploading **${file.name}** (${mb} MB)…`)
+            try {
+              const d = await api.uploadFile(file, (pct) => {
+                setMessages(prev => {
+                  const c = [...prev]
+                  c[c.length - 1] = { ...c[c.length - 1], content: `📎 Uploading **${file.name}** (${mb} MB)… ${pct}%` }
+                  return c
+                })
+              })
+              const ext = d.extracted_count > 0 ? ` — zip extracted: ${d.extracted_count} files` : ''
+              setMessages(prev => {
+                const c = [...prev]
+                c[c.length - 1] = { ...c[c.length - 1], content: `📎 Uploaded **${d.filename}** (${mb} MB)${ext}` }
+                return c
+              })
+              addMessage('assistant', `Got it — **${d.filename}** is in my workspace${ext}. Ask me anything about it.`, { done: true })
+            } catch (e) {
+              addMessage('assistant', `**Upload failed:** ${e.message}`, { done: true })
+            }
+          }}
           onStartResearch={startResearch}
           onCloseResearch={() => { setResearchOpen(false); if (researchSSERef.current) researchSSERef.current.close() }}
           onSetResearchDepth={setResearchDepth}
@@ -918,7 +948,7 @@ export default function App() {
         />
       )}
       {gamesOpen && <GamesModal onClose={() => setGamesOpen(false)} />}
-      {agentTask && <AgentsRunPanel task={agentTask} onClose={() => setAgentTask(null)} />}
+      {agentTask && <AgentsRunPanel task={agentTask.goal || agentTask} loop={!!agentTask.loop} onClose={() => setAgentTask(null)} />}
       {terminalOpen && <TerminalPanel onClose={() => setTerminalOpen(false)} />}
 
       <Toasts toasts={toasts} onDismiss={(id) => setToasts(prev => prev.filter(t => t.id !== id))} />

@@ -11,22 +11,61 @@ const ic = (a) => AGENT_ICON[a] || '🤖'
 
 // Live view of the agent company working a task. Streams steps over SSE and
 // shows each agent thinking → working → done, then the combined result.
-export default function AgentsRunPanel({ task, onClose }) {
+export default function AgentsRunPanel({ task, loop = false, onClose }) {
   const [steps, setSteps] = useState([])     // [{agent, text, state}]
   const [plan, setPlan] = useState([])
   const [final, setFinal] = useState(null)
   const [files, setFiles] = useState([])
   const [runId, setRunId] = useState(null)
   const [running, setRunning] = useState(true)
+  const [loopInfo, setLoopInfo] = useState(null) // {loop, max, done, feedback}
+  // Clarify phase (loop mode): ask questions BEFORE building, like top models do.
+  const [questions, setQuestions] = useState(null)   // null=loading, []=none
+  const [answers, setAnswers] = useState({})
+  const [startTask, setStartTask] = useState(loop ? null : task)
   const sseRef = useRef(null)
 
   useEffect(() => {
-    if (!task) return
-    const sse = new EventSource(api.agentsRunUrl(task))
+    if (!loop || !task) return
+    let alive = true
+    api.agentsClarify(task)
+      .then(d => { if (alive) setQuestions(d.questions || []) })
+      .catch(() => { if (alive) setQuestions([]) })
+    return () => { alive = false }
+  }, [task, loop])
+
+  // No questions came back -> start immediately
+  useEffect(() => {
+    if (loop && questions !== null && questions.length === 0 && !startTask) setStartTask(task)
+  }, [questions, loop, task, startTask])
+
+  const beginRun = (skip = false) => {
+    const qa = skip ? [] : (questions || [])
+      .map((q, i) => ({ q, a: (answers[i] || '').trim() }))
+      .filter(x => x.a)
+    const augmented = qa.length
+      ? `${task}\n\nUser clarifications:\n${qa.map(x => `Q: ${x.q}\nA: ${x.a}`).join('\n')}`
+      : task
+    setStartTask(augmented)
+  }
+
+  useEffect(() => {
+    if (!startTask) return
+    const sse = new EventSource(loop ? api.agentsLoopUrl(startTask) : api.agentsRunUrl(startTask))
     sseRef.current = sse
     sse.onmessage = (e) => {
       let d; try { d = JSON.parse(e.data) } catch { return }
-      if (d.type === 'plan') {
+      if (d.type === 'loop_start') {
+        setLoopInfo({ loop: d.loop, max: d.max, done: false, feedback: d.feedback })
+        if (d.loop > 1) { setSteps([]); setPlan([]); setFinal(null) } // fresh attempt view
+      } else if (d.type === 'loop_check') {
+        setLoopInfo(prev => ({ loop: d.loop, max: prev?.max || d.loop, done: d.done, feedback: d.feedback }))
+        if (!d.done && d.feedback) {
+          setSteps(prev => [...prev, { agent: 'reviewer', text: `QA rejected — retrying: ${d.feedback.slice(0, 180)}`, state: 'done' }])
+        }
+      } else if (d.type === 'loop_end') {
+        setLoopInfo(prev => prev ? { ...prev, ended: true, done: d.done } : prev)
+      } else if (d.type === 'plan') {
         setPlan(d.steps || [])
       } else if (d.type === 'step_start') {
         setSteps(prev => [...prev, { agent: d.agent, text: d.task, state: 'working', idx: d.idx }])
@@ -52,16 +91,48 @@ export default function AgentsRunPanel({ task, onClose }) {
     }
     sse.onerror = () => { setRunning(false); sse.close() }
     return () => sse.close()
-  }, [task])
+  }, [startTask, loop])
 
   return (
     <div className="agents-run-overlay" onClick={onClose}>
       <div className="agents-run" onClick={e => e.stopPropagation()}>
         <div className="agents-run-head">
-          <span>🏢 Agent company working{running ? '…' : ' — done'}</span>
+          <span>
+            {loop ? '🔁' : '🏢'} Agent company working{running ? '…' : ' — done'}
+            {loopInfo && ` · loop ${loopInfo.loop}${loopInfo.max ? `/${loopInfo.max}` : ''}`}
+            {loopInfo?.ended && (loopInfo.done ? ' · ✅ QA passed' : ' · ⚠ max loops hit')}
+          </span>
           <button className="slide-close-btn" onClick={onClose}>✕</button>
         </div>
         <div className="agents-run-task">🎯 {task}</div>
+
+        {/* Clarify phase — questions before building */}
+        {loop && !startTask && (
+          <div className="agents-clarify">
+            {questions === null && <div className="agent-step working"><em>🤔 Thinking about what to ask you…</em></div>}
+            {questions !== null && questions.length > 0 && (
+              <>
+                <div className="agents-clarify-label">Before I start — quick questions (answer any, skip the rest):</div>
+                {questions.map((q, i) => (
+                  <div key={i} className="agents-clarify-q">
+                    <label>{q}</label>
+                    <input
+                      className="mem-search"
+                      value={answers[i] || ''}
+                      onChange={e => setAnswers(a => ({ ...a, [i]: e.target.value }))}
+                      onKeyDown={e => e.key === 'Enter' && beginRun(false)}
+                      placeholder="(optional)"
+                    />
+                  </div>
+                ))}
+                <div className="agents-clarify-btns">
+                  <button className="tab-action-btn" onClick={() => beginRun(false)}>▶ Start building</button>
+                  <button className="tab-action-btn" onClick={() => beginRun(true)}>Skip questions</button>
+                </div>
+              </>
+            )}
+          </div>
+        )}
 
         {plan.length > 0 && (
           <div className="agents-plan">
