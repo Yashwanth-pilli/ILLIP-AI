@@ -75,8 +75,12 @@ class CodeExecutorSkill(BaseSKill):
             tmp_path = f.name
 
         try:
+            # cwd = shell sandbox (same folder run_shell uses), so files the
+            # code writes land in the workspace, never in the server repo root
+            from app.services.shell_service import get_cwd
             proc = await asyncio.create_subprocess_exec(
                 sys.executable, tmp_path,
+                cwd=get_cwd(),
                 stdout=asyncio.subprocess.PIPE,
                 stderr=asyncio.subprocess.PIPE,
                 env={**os.environ, "PYTHONDONTWRITEBYTECODE": "1"},
