@@ -69,8 +69,10 @@ def _fts_store(text: str, project_id: str, category: str = "chat") -> None:
             "INSERT INTO memories(text, project_id, category, ts) VALUES (?,?,?,?)",
             (text, project_id, category, ts),
         )
+        # OR REPLACE: FTS5 reuses rowids after deletes; stale meta rows
+        # from a partial clear must never block new memory writes
         conn.execute(
-            "INSERT INTO memories_meta(rowid, ts_unix) VALUES (?,?)",
+            "INSERT OR REPLACE INTO memories_meta(rowid, ts_unix) VALUES (?,?)",
             (cur.lastrowid, float(ts)),
         )
         conn.commit()
@@ -328,6 +330,97 @@ def format_memories_for_prompt(memories: list[dict]) -> str:
             seen.add(text)
             lines.append(f"- {text[:300]}")
     return "\n".join(lines) if len(lines) > 1 else ""
+
+
+def list_memories(project_id: str = "default", limit: int = 200, offset: int = 0,
+                  search: str = "") -> list[dict]:
+    """Browse stored memories (FTS is source of truth — every write lands there)."""
+    try:
+        conn = _fts_conn()
+        if search:
+            match_expr = _fts_query_syntax(search)
+            rows = conn.execute(
+                """
+                SELECT m.rowid, m.text, m.category, m.ts FROM memories m
+                WHERE m.project_id = ? AND memories MATCH ?
+                ORDER BY m.rowid DESC LIMIT ? OFFSET ?
+                """,
+                (project_id, match_expr, limit, offset),
+            ).fetchall() if match_expr else []
+        else:
+            rows = conn.execute(
+                """
+                SELECT m.rowid, m.text, m.category, m.ts FROM memories m
+                WHERE m.project_id = ?
+                ORDER BY m.rowid DESC LIMIT ? OFFSET ?
+                """,
+                (project_id, limit, offset),
+            ).fetchall()
+        conn.close()
+        return [{"id": r[0], "text": r[1], "category": r[2], "ts": float(r[3] or 0)} for r in rows]
+    except Exception as e:
+        logger.error(f"list_memories failed: {e}")
+        return []
+
+
+def delete_memory_entry(rowid: int, project_id: str = "default") -> bool:
+    """Delete one memory from FTS + matching text from Qdrant."""
+    text = None
+    try:
+        conn = _fts_conn()
+        row = conn.execute(
+            "SELECT text FROM memories WHERE rowid = ? AND project_id = ?",
+            (rowid, project_id),
+        ).fetchone()
+        if not row:
+            conn.close()
+            return False
+        text = row[0]
+        conn.execute("DELETE FROM memories WHERE rowid = ?", (rowid,))
+        conn.execute("DELETE FROM memories_meta WHERE rowid = ?", (rowid,))
+        conn.commit()
+        conn.close()
+    except Exception as e:
+        logger.error(f"delete_memory_entry failed: {e}")
+        return False
+
+    # Purge same text from Qdrant (point ids aren't recomputable — filter on payload)
+    if text and _init_qdrant():
+        try:
+            from qdrant_client.models import Filter, FieldCondition, MatchValue, FilterSelector
+            _qdrant_client.delete(
+                collection_name=_collection(project_id),
+                points_selector=FilterSelector(filter=Filter(must=[
+                    FieldCondition(key="text", match=MatchValue(value=text)),
+                ])),
+            )
+        except Exception as e:
+            logger.debug(f"Qdrant delete failed: {e}")
+    return True
+
+
+def clear_project_memories(project_id: str = "default") -> int:
+    """Wipe all memories for a project (FTS rows + Qdrant collection). Returns rows removed."""
+    removed = 0
+    try:
+        conn = _fts_conn()
+        rowids = [r[0] for r in conn.execute(
+            "SELECT rowid FROM memories WHERE project_id = ?", (project_id,)
+        ).fetchall()]
+        conn.execute("DELETE FROM memories WHERE project_id = ?", (project_id,))
+        if rowids:
+            conn.executemany("DELETE FROM memories_meta WHERE rowid = ?", [(r,) for r in rowids])
+        conn.commit()
+        conn.close()
+        removed = len(rowids)
+    except Exception as e:
+        logger.error(f"clear_project_memories failed: {e}")
+    if _init_qdrant():
+        try:
+            _qdrant_client.delete_collection(_collection(project_id))
+        except Exception as e:
+            logger.debug(f"Qdrant collection drop failed: {e}")
+    return removed
 
 
 async def memory_stats(project_id: str = "default") -> dict:

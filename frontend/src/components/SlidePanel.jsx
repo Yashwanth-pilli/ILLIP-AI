@@ -11,12 +11,15 @@ import WorkflowsPanel from './panels/WorkflowsPanel.jsx'
 import SchedulerPanel from './panels/SchedulerPanel.jsx'
 import PluginsPanel from './panels/PluginsPanel.jsx'
 import StatsPanel from './panels/StatsPanel.jsx'
+import MemoryPanel from './panels/MemoryPanel.jsx'
+import WorkspacePanel from './panels/WorkspacePanel.jsx'
 
 const TITLES = {
   system: 'System Status', hardware: 'Hardware', models: 'Models',
   ghost: '👻 Ghost Engine', skills: 'Skills', agents: 'Agents',
   health: 'Health Monitor', governance: 'Governance', workflows: 'Workflows',
   scheduler: 'Scheduler', plugins: 'Plugins', stats: 'Stats',
+  memory: 'Memory', workspace: 'Workspace',
 }
 
 export default function SlidePanel({
@@ -25,6 +28,7 @@ export default function SlidePanel({
   plugins, healthData, govPending, schedulerJobs, stats, pinnedModel,
   onSwitchModel, onGovApprove, onGovDeny, onSchedRun, onSchedToggle,
   onAddPlugin, onDeletePlugin, onInstallSkill, onShowMarketplace, onCreateJob,
+  activeProject,
 }) {
   const panelProps = {
     system:     { component: SystemPanel,       props: { data: systemStatus } },
@@ -39,6 +43,8 @@ export default function SlidePanel({
     scheduler:  { component: SchedulerPanel,  props: { jobs: schedulerJobs, onRun: onSchedRun, onToggle: onSchedToggle, onCreate: onCreateJob } },
     plugins:    { component: PluginsPanel,    props: { plugins, onAdd: onAddPlugin, onDelete: onDeletePlugin, onMarketplace: onShowMarketplace } },
     stats:      { component: StatsPanel,      props: { data: stats } },
+    memory:     { component: MemoryPanel,     props: { projectId: activeProject || 'default' } },
+    workspace:  { component: WorkspacePanel,  props: { projectId: activeProject || 'default' } },
   }
 
   const current = activePanel ? panelProps[activePanel] : null

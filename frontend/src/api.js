@@ -41,6 +41,30 @@ export const api = {
     body: JSON.stringify({ name }),
   }).then(r => r.json()),
 
+  // Memory (long-term vector/FTS)
+  memoryList: (projectId, search = '') =>
+    fetch(`${BASE}/memory/vector/list?project_id=${encodeURIComponent(projectId)}&search=${encodeURIComponent(search)}`).then(r => r.json()),
+  memoryDelete: (id, projectId) =>
+    fetch(`${BASE}/memory/vector/${id}?project_id=${encodeURIComponent(projectId)}`, { method: 'DELETE' }).then(r => r.json()),
+  memoryClear: (projectId) =>
+    fetch(`${BASE}/memory/vector/clear?project_id=${encodeURIComponent(projectId)}`, { method: 'POST' }).then(r => r.json()),
+
+  // Workspace + Tasks (Project OS panel)
+  wsAnalyze: () => fetch(`${BASE}/workspace/analyze`).then(r => r.json()),
+  wsHealth: () => fetch(`${BASE}/workspace/health`).then(r => r.json()),
+  wsFiles: () => fetch(`${BASE}/workspace/file-summary`).then(r => r.json()),
+  wsFileContent: (path) => fetch(`${BASE}/workspace/file-content?path=${encodeURIComponent(path)}`).then(r => r.json()),
+  tasksList: () => fetch(`${BASE}/tasks/`).then(r => r.json()),
+  taskCreate: (title) => fetch(`${BASE}/tasks/`, {
+    method: 'POST', headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ title }),
+  }).then(r => r.json()),
+  taskUpdate: (id, updates) => fetch(`${BASE}/tasks/${id}`, {
+    method: 'PATCH', headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(updates),
+  }).then(r => r.json()),
+  taskDelete: (id) => fetch(`${BASE}/tasks/${id}`, { method: 'DELETE' }).then(r => r.json()),
+
   // Skills
   skills: () => fetch(`${BASE}/skills/`).then(r => r.json()),
   installSkill: (url) => fetch(`${BASE}/skills/install`, {

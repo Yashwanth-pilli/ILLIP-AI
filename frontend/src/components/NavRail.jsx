@@ -5,6 +5,8 @@ const NAV_ITEMS = [
   { id: 'hardware',    icon: '🖥️',  label: 'Hardware' },
   { id: 'models',      icon: '🧠',  label: 'Models' },
   { id: 'ghost',       icon: '👻',  label: 'Ghost Engine' },
+  { id: 'workspace',   icon: '🗂️',  label: 'Workspace' },
+  { id: 'memory',      icon: '🧿',  label: 'Memory' },
   { id: 'skills',      icon: '🔧',  label: 'Skills' },
   { id: 'agents',      icon: '🤖',  label: 'Agents', badge: 'agentCount' },
   { id: 'health',      icon: '📊',  label: 'Health' },

@@ -373,6 +373,25 @@ async def reflexion_stats():
     }
 
 
+@router.get("/update/check")
+async def update_check():
+    """Compare local HEAD vs remote main."""
+    from app.services.self_update import check_update
+    return await check_update()
+
+
+@router.post("/update")
+async def update_apply(restart: bool = False):
+    """Safe self-update: snapshot -> pull -> smoke-test -> rollback on fail."""
+    import asyncio as _a
+    from app.services.self_update import safe_update, restart_server
+    result = await safe_update()
+    if result["ok"] and restart and result["new"] != result["old"]:
+        _a.get_event_loop().call_later(1.0, restart_server)
+        result["restarting"] = True
+    return result
+
+
 @router.post("/refresh")
 async def refresh_system(body: dict = {}):
     """

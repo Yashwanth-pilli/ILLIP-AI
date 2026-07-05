@@ -804,6 +804,7 @@ export default function App() {
           onInstallSkill={() => setInstallSkillOpen(true)}
           onShowMarketplace={() => setMarketplaceOpen(true)}
           onCreateJob={() => setCreateJobOpen(true)}
+          activeProject={activeProject}
         />
 
         <ChatMain

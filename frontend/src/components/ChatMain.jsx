@@ -164,7 +164,7 @@ export default function ChatMain({
             title="Run your message through the agent company"
           >🏢 Team</button>
           <button
-            className="action-btn terminal"
+            className="action-btn term-open"
             onClick={onOpenTerminal}
             title="Open a real terminal"
           >▶ Terminal</button>

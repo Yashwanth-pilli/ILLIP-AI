@@ -334,6 +334,23 @@ This is the feature that makes ILLIP feel like an actual AI *company*, not one c
 
 ---
 
+## Phase 5.13: 3-Tier Routing + Glassmorphism (Complete — 2026-07-05)
+
+- [x] **3-tier model routing**: CHAT=qwen2.5:7b (small-talk, ~3s), SMALL/brain=ornith:9b
+      (ALL real work incl. code — it's the coding specialist), LARGE=gpt-oss:20b
+      (deep, on-demand via force_large/pin only — never auto). Verified live: "hey"→qwen,
+      "write a python fn"→ornith, "analyze…"→ornith, pinned→gpt-oss. Regression test added.
+- [x] qwen kept as the fast small-talk model (user chose keep).
+- [x] **Glassmorphism UI**: gradient depth backdrop + frosted translucent panels
+      (backdrop-blur) across header/nav/panels/dialogs/cards/message-bubbles/inputs,
+      hairline borders, dimmed blurred overlays, solid fallback if backdrop-filter
+      unsupported. Layered on top of the calm-dark theme.
+- [x] **Full test pass**: backend suite green + broad live smoke (16 subsystems:
+      health, terminal, danger-block, run_shell, doctor, models, hardware/live safety,
+      search, projects, agents, voice, image, chat-history, memory, scheduler, plugins).
+
+---
+
 ## Phase 6: Revenue & Editions (Deferred — PDF §42)
 
 - [ ] Free / Pro / Enterprise edition gating

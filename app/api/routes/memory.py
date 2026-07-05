@@ -84,6 +84,33 @@ async def delete_memory(entry_id: str):
         raise HTTPException(status_code=500, detail=str(e))
 
 
+@router.get("/vector/list")
+async def list_vector_memories(project_id: str = "default", limit: int = 200,
+                               offset: int = 0, search: str = ""):
+    """Browse long-term chat/vector memories."""
+    from app.services import memory_qdrant
+    entries = memory_qdrant.list_memories(project_id, limit, offset, search)
+    stats = await memory_qdrant.memory_stats(project_id)
+    return {"entries": entries, "count": len(entries), "stats": stats}
+
+
+@router.delete("/vector/{rowid}")
+async def delete_vector_memory(rowid: int, project_id: str = "default"):
+    """Delete one long-term memory (FTS + Qdrant)."""
+    from app.services import memory_qdrant
+    if not memory_qdrant.delete_memory_entry(rowid, project_id):
+        raise HTTPException(status_code=404, detail="Memory not found")
+    return {"status": "deleted", "id": rowid}
+
+
+@router.post("/vector/clear")
+async def clear_vector_memories(project_id: str = "default"):
+    """Wipe ALL long-term memories for a project. Fixes persona poisoning."""
+    from app.services import memory_qdrant
+    removed = memory_qdrant.clear_project_memories(project_id)
+    return {"status": "cleared", "removed": removed, "project_id": project_id}
+
+
 @router.get("/stats/overview")
 async def get_memory_stats():
     """Get memory statistics"""

@@ -863,7 +863,7 @@ async def _cmd_update(update, context):
         return
     msg = await update.message.reply_text("🔍 Checking for updates...")
     try:
-        from app.services.self_update import check_update, pull_update, restart_server
+        from app.services.self_update import check_update, safe_update, restart_server
         status = await check_update()
         if status["up_to_date"]:
             await msg.edit_text(
@@ -875,9 +875,15 @@ async def _cmd_update(update, context):
             f"⬇️ New version found!\nLocal: `{status['local']}`\nRemote: `{status['remote']}`\nPulling...",
             parse_mode="Markdown",
         )
-        output = await pull_update()
+        result = await safe_update()
+        if not result["ok"]:
+            await msg.edit_text(
+                f"❌ Update broken — rolled back to `{result['old']}`.\n```\n{result['output'][:600]}\n```",
+                parse_mode="Markdown",
+            )
+            return
         await msg.edit_text(
-            f"✅ Updated!\n```\n{output[:800]}\n```\nRestarting...",
+            f"✅ Updated `{result['old']}` → `{result['new']}`. Restarting...",
             parse_mode="Markdown",
         )
         await asyncio.sleep(1)

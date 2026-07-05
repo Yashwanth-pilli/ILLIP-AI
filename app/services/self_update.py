@@ -60,6 +60,45 @@ async def pull_update(branch: str = "main") -> str:
     return output
 
 
+async def safe_update(branch: str = "main") -> dict:
+    """
+    Update with rollback safety:
+      1. snapshot current HEAD
+      2. git pull
+      3. smoke-test new code (import app.main in a subprocess)
+      4. on failure: git reset --hard back to snapshot
+    Returns {ok, old, new, output, rolled_back}.
+    Caller decides whether to restart_server() when ok.
+    """
+    old = await get_local_hash()
+    output = await pull_update(branch)
+    new = await get_local_hash()
+
+    if new == old:
+        return {"ok": True, "old": old, "new": new, "output": output, "rolled_back": False}
+
+    # Smoke test: can the new code even be imported?
+    proc = await asyncio.create_subprocess_exec(
+        sys.executable, "-c", "import app.main",
+        cwd=str(_REPO_ROOT),
+        stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.STDOUT,
+    )
+    out, _ = await asyncio.wait_for(proc.communicate(), timeout=120)
+    if proc.returncode == 0:
+        logger.info(f"Self-update OK: {old} -> {new}")
+        return {"ok": True, "old": old, "new": new, "output": output, "rolled_back": False}
+
+    # Broken update — roll back
+    err = out.decode(errors="replace")[-500:]
+    logger.error(f"Self-update smoke test FAILED, rolling back {new} -> {old}: {err}")
+    rb = await asyncio.create_subprocess_exec(
+        "git", "-C", str(_REPO_ROOT), "reset", "--hard", old,
+        stdout=asyncio.subprocess.DEVNULL, stderr=asyncio.subprocess.DEVNULL,
+    )
+    await rb.communicate()
+    return {"ok": False, "old": old, "new": new, "output": err, "rolled_back": True}
+
+
 def restart_server():
     """Replace current process with a fresh uvicorn. No return."""
     logger.info("Self-update: restarting server...")
