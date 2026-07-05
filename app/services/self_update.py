@@ -36,15 +36,33 @@ async def get_remote_hash(branch: str = "main") -> str:
 
 
 async def check_update(branch: str = "main") -> dict:
-    """Return update status dict."""
+    """Return update status dict. has_update only when remote has commits we lack
+    (local being ahead of remote is NOT an update)."""
     local  = await get_local_hash()
     remote = await get_remote_hash(branch)
-    up_to_date = (local == remote or not remote)
+    behind = 0
+    if remote and local != remote:
+        # fetch then count commits in remote that local doesn't have
+        fetch = await asyncio.create_subprocess_exec(
+            "git", "-C", str(_REPO_ROOT), "fetch", "origin", branch,
+            stdout=asyncio.subprocess.DEVNULL, stderr=asyncio.subprocess.DEVNULL,
+        )
+        await fetch.communicate()
+        proc = await asyncio.create_subprocess_exec(
+            "git", "-C", str(_REPO_ROOT), "rev-list", "--count", f"HEAD..origin/{branch}",
+            stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.DEVNULL,
+        )
+        out, _ = await proc.communicate()
+        try:
+            behind = int(out.decode().strip() or 0)
+        except ValueError:
+            behind = 0
     return {
         "local": local,
         "remote": remote or "unknown",
-        "up_to_date": up_to_date,
-        "has_update": not up_to_date and bool(remote),
+        "up_to_date": behind == 0,
+        "has_update": behind > 0,
+        "behind_by": behind,
     }
 
 

@@ -99,52 +99,28 @@ async def speak_text(body: dict):
     if not text:
         raise HTTPException(status_code=400, detail="text required")
 
-    # Try Piper binary
+    # Delegate to voice_tts service: Piper -> Windows SAPI -> gTTS
     try:
-        import subprocess, shutil
-        piper_bin = shutil.which("piper")
-        if not piper_bin:
-            raise HTTPException(
-                status_code=501,
-                detail="Piper TTS not installed. Frontend will use browser speechSynthesis."
-            )
-
-        # Default voice model path — configurable via PIPER_VOICE env var
-        voice_model = os.environ.get(
-            "PIPER_VOICE",
-            str(settings.get_data_path() / "voices" / "en_US-lessac-medium.onnx")
-        )
-        if not Path(voice_model).exists():
-            raise HTTPException(
-                status_code=503,
-                detail=f"Voice model not found: {voice_model}. Download from https://huggingface.co/rhasspy/piper-voices"
-            )
-
-        with tempfile.NamedTemporaryFile(suffix=".wav", delete=False) as out:
-            out_path = out.name
-
-        proc = subprocess.run(
-            [piper_bin, "--model", voice_model, "--output_file", out_path],
-            input=text.encode(),
-            capture_output=True,
-            timeout=30,
-        )
-        if proc.returncode != 0:
-            raise HTTPException(status_code=500, detail=f"Piper error: {proc.stderr.decode()}")
+        from app.services.voice_tts import speak as tts_speak
+        audio_path = await tts_speak(text)
+        media = "audio/mpeg" if audio_path.endswith(".mp3") else "audio/wav"
 
         def iter_audio():
-            with open(out_path, "rb") as f:
+            with open(audio_path, "rb") as f:
                 while chunk := f.read(8192):
                     yield chunk
             try:
-                os.unlink(out_path)
+                os.unlink(audio_path)
             except Exception:
                 pass
 
-        return StreamingResponse(iter_audio(), media_type="audio/wav")
+        return StreamingResponse(iter_audio(), media_type=media)
 
     except HTTPException:
         raise
+    except RuntimeError as e:
+        # all backends failed — frontend falls back to browser speechSynthesis
+        raise HTTPException(status_code=501, detail=str(e))
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
