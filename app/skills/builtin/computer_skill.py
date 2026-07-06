@@ -158,6 +158,28 @@ class ReadAnywhereSkill(BaseSKill):
         return out or "(empty file)"
 
 
+class ScanFileSkill(BaseSKill):
+    name = "scan_file"
+    description = (
+        "Security-scan a downloaded file or folder for malicious signs before the user "
+        "opens it: disguised executables, double extensions, suspicious archive contents, "
+        "Windows Defender check. READ-ONLY, never executes anything. "
+        "Give an absolute path; empty path scans the newest file in Downloads."
+    )
+    parameters = {
+        "type": "object",
+        "properties": {
+            "path": {"type": "string",
+                     "description": "Absolute path to a file/folder. Empty = newest download."},
+        },
+        "required": [],
+    }
+
+    async def execute(self, path: str = "", **_) -> str:
+        from app.services.file_guardian import scan_path
+        return await scan_path(path)
+
+
 if __name__ == "__main__":
     # ponytail self-check: sandbox guards are the only tricky logic
     import asyncio as _a

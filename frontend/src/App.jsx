@@ -373,6 +373,34 @@ export default function App() {
       return
     }
 
+    // Slash commands that call a backend route and render its markdown report.
+    const reportCommands = [
+      { cmd: '/idea', run: (arg) => api.ideaJourney(arg), wait: '💡 Analyzing your idea, searching similar work, building your step plan…', needArg: 'Tell me the idea: `/idea an app that helps farmers detect crop disease from photos`' },
+      { cmd: '/stuck', run: (arg) => api.ideaStuck(arg), wait: '🧭 Looking at your tasks and workspace to find your next step…' },
+      { cmd: '/opps', run: (arg) => api.ideaOpportunities(arg), wait: '🌱 Searching live opportunities for your field…' },
+      { cmd: '/opportunities', run: (arg) => api.ideaOpportunities(arg), wait: '🌱 Searching live opportunities for your field…' },
+      { cmd: '/scan', run: (arg) => api.guardianScan(arg), wait: '🛡️ Scanning for malicious signs (heuristics + Windows Defender)…' },
+    ]
+    if (typeof message === 'string' && message.trim().startsWith('/')) {
+      const trimmed = message.trim()
+      const rc = reportCommands.find(c => trimmed.toLowerCase() === c.cmd || trimmed.toLowerCase().startsWith(c.cmd + ' '))
+      if (rc) {
+        const arg = trimmed.slice(rc.cmd.length).trim()
+        if (!arg && rc.needArg) { addMessage('assistant', rc.needArg); return }
+        addMessage('user', trimmed)
+        addMessage('assistant', rc.wait)
+        try {
+          const d = await rc.run(arg)
+          setMessages(prev => prev.slice(0, -1))
+          addMessage('assistant', d.report_md || d.detail || 'No report returned.', { done: true })
+        } catch (e) {
+          setMessages(prev => prev.slice(0, -1))
+          addMessage('assistant', `**${rc.cmd} failed:** ${e.message}`)
+        }
+        return
+      }
+    }
+
     // Slash command: /doctor — run diagnostics, render inline. No LLM call.
     if (typeof message === 'string' && message.trim().toLowerCase() === '/doctor') {
       addMessage('user', '/doctor')

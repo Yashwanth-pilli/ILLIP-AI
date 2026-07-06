@@ -146,6 +146,24 @@ export const api = {
     body: JSON.stringify({ command, confirm }),
   }).then(r => r.json()),
 
+  // Idea Journey + Guardian (all return { report_md })
+  ideaJourney: (idea) => fetch(`${BASE}/idea/journey`, {
+    method: 'POST', headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ idea }),
+  }).then(r => r.json()),
+  ideaStuck: (situation = '') => fetch(`${BASE}/idea/stuck`, {
+    method: 'POST', headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ situation }),
+  }).then(r => r.json()),
+  ideaOpportunities: (about = '') => fetch(`${BASE}/idea/opportunities`, {
+    method: 'POST', headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ about }),
+  }).then(r => r.json()),
+  guardianScan: (path = '') => fetch(`${BASE}/guardian/scan`, {
+    method: 'POST', headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ path }),
+  }).then(r => r.json()),
+
   // Agent orchestration SSE URL
   agentsRunUrl: (task) => `/api/agents/run/stream?task=${encodeURIComponent(task)}`,
   agentsLoopUrl: (task, maxLoops = 3) => `/api/agents/loop/stream?task=${encodeURIComponent(task)}&max_loops=${maxLoops}`,

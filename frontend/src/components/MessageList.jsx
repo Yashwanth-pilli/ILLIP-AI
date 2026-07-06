@@ -104,7 +104,7 @@ export default function MessageList({ messages, onFeedback, onSpeak, onRegenerat
           <div style={{fontSize:'48px',marginBottom:'12px'}}>🐱</div>
           <div>ILLIP — Local · Private · Yours</div>
           <div style={{fontSize:'12px',marginTop:'6px',color:'#4a4a6a'}}>Ask anything. Your data never leaves your device.</div>
-          <div style={{fontSize:'11px',marginTop:'10px',color:'#4a4a6a'}}>Tip: <code>/task &lt;goal&gt;</code> puts the agent team to work · <code>/doctor</code> · <code>/game</code></div>
+          <div style={{fontSize:'11px',marginTop:'10px',color:'#4a4a6a'}}>Tip: <code>/idea &lt;your idea&gt;</code> · <code>/stuck</code> · <code>/opps</code> · <code>/scan &lt;file&gt;</code> · <code>/task &lt;goal&gt;</code> · <code>/doctor</code></div>
         </div>
       )}
       {messages.map(msg => (
