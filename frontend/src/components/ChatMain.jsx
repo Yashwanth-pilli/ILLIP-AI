@@ -7,19 +7,27 @@ import ImagePanel from './ImagePanel.jsx'
 import VideoPanel from './VideoPanel.jsx'
 import ArtifactPane from './ArtifactPane.jsx'
 
-// Known slash commands — drives the highlight hint bar above the input.
+// Known slash commands — drives the command palette above the input.
+// `arg` shows expected input and decides whether accepting adds a trailing
+// space (needs an argument) or not (runs on the next Enter).
 const SLASH_COMMANDS = [
-  { cmd: '/task',      desc: 'Run a goal through the agent crew (live)' },
-  { cmd: '/loop',      desc: 'Agent crew loops until QA passes' },
-  { cmd: '/doctor',    desc: 'Run diagnostics (opens a panel, not chat)' },
-  { cmd: '/heal',      desc: 'Auto-repair Ollama/model issues' },
-  { cmd: '/idea',      desc: 'Analyze an idea + build a step plan' },
-  { cmd: '/stuck',     desc: 'Get your next step' },
-  { cmd: '/opps',      desc: 'Find live opportunities for your field' },
-  { cmd: '/scan',      desc: 'Scan a downloaded file for malware signs' },
-  { cmd: '/remind',    desc: 'Set a daily reminder — /remind HH:MM …' },
-  { cmd: '/reminders', desc: 'List your reminders' },
-  { cmd: '/guide',     desc: 'Show the ILLIP tour' },
+  { cmd: '/task',      arg: '<goal>',   desc: 'Run a goal through the agent crew (live)' },
+  { cmd: '/loop',      arg: '<goal>',   desc: 'Agent crew loops until QA passes' },
+  { cmd: '/idea',      arg: '<idea>',   desc: 'Analyze an idea + build a step plan' },
+  { cmd: '/stuck',     arg: '',         desc: 'Get your next step from tasks + workspace' },
+  { cmd: '/opps',      arg: '',         desc: 'Find live opportunities for your field' },
+  { cmd: '/scan',      arg: '[path]',   desc: 'Scan a download for malware signs (safe / unsafe)' },
+  { cmd: '/getsafe',   arg: '<name>',   desc: 'How to download + run something safely (before you get it)' },
+  { cmd: '/gstack',    arg: '[path]',   desc: 'Git status + a suggested commit message (read-only)' },
+  { cmd: '/caveman',   arg: '[off]',    desc: 'Toggle terse replies (faster on local hardware)' },
+  { cmd: '/ponytail',  arg: '[off]',    desc: 'Toggle simplest-solution / anti-over-engineering style' },
+  { cmd: '/remind',    arg: 'HH:MM …',  desc: 'Set a daily reminder' },
+  { cmd: '/reminders', arg: '',         desc: 'List your reminders' },
+  { cmd: '/unremind',  arg: '<id>',     desc: 'Delete a reminder by id' },
+  { cmd: '/doctor',    arg: '',         desc: 'Run diagnostics (opens a panel, not chat)' },
+  { cmd: '/heal',      arg: '',         desc: 'Auto-repair Ollama / model issues' },
+  { cmd: '/game',      arg: '',         desc: 'Open the arcade' },
+  { cmd: '/guide',     arg: '',         desc: 'Show the ILLIP tour' },
 ]
 
 export default function ChatMain({
@@ -38,17 +46,30 @@ export default function ChatMain({
   onFeedback, onSpeak,
 }) {
   const [inputValue, setInputValue] = useState('')
+  const [menuIndex, setMenuIndex] = useState(0)   // highlighted row in the palette
+  const [slashDismissed, setSlashDismissed] = useState(false) // Esc / accept hides it
   const inputRef = useRef(null)
 
-  // Slash-command matching for the hint bar + input highlight
+  // Slash-command matching for the command palette + input highlight
   const trimmedInput = inputValue.trim()
   const firstWord = trimmedInput.split(/\s+/)[0].toLowerCase()
   const isSlashCommand = trimmedInput.startsWith('/') &&
     SLASH_COMMANDS.some(c => c.cmd === firstWord)
-  const exactSlash = SLASH_COMMANDS.find(c => c.cmd === firstWord)?.cmd || null
+  // While typing a "/word" (no space yet) show every command that prefix-matches.
   const slashMatches = trimmedInput.startsWith('/') && !trimmedInput.includes(' ')
     ? SLASH_COMMANDS.filter(c => c.cmd.startsWith(trimmedInput.toLowerCase()))
     : []
+  // Input already IS a full command name → Enter should run it, not re-complete.
+  const exactComplete = SLASH_COMMANDS.some(c => c.cmd === trimmedInput.toLowerCase())
+  const menuVisible = slashMatches.length > 0 && !slashDismissed
+  const selected = slashMatches[Math.min(menuIndex, slashMatches.length - 1)] || null
+
+  // Accept a palette row: fill the command, add a space only if it takes an arg.
+  const acceptSlash = (c) => {
+    setInputValue(c.arg ? c.cmd + ' ' : c.cmd)
+    setSlashDismissed(true)
+    inputRef.current?.focus()
+  }
 
   // Voice transcription inserts text
   useEffect(() => {
@@ -61,6 +82,9 @@ export default function ChatMain({
   useEffect(() => {
     inputRef.current?.focus()
   }, [])
+
+  // Reset the palette highlight whenever the typed command prefix changes.
+  useEffect(() => { setMenuIndex(0) }, [firstWord])
 
   // Shrink the box back to one line whenever it's cleared (after send, /refresh, etc.)
   useEffect(() => {
@@ -266,17 +290,25 @@ export default function ChatMain({
         {imagePanelOpen && <ImagePanel onClose={onCloseImage} />}
         {videoPanelOpen && <VideoPanel onClose={onCloseVideo} />}
 
-        {/* Slash-command hint bar — appears while typing a "/…" command */}
-        {slashMatches.length > 0 && (
-          <div className="slash-hints">
-            {slashMatches.map(c => (
+        {/* Command palette — appears while typing a "/…" command */}
+        {menuVisible && (
+          <div className="slash-hints" role="listbox">
+            <div className="slash-hints-head">
+              <span>Commands</span>
+              <span className="slash-hints-keys">↑↓ move · ⏎/Tab pick · Esc close</span>
+            </div>
+            {slashMatches.map((c, i) => (
               <button
                 key={c.cmd}
                 type="button"
-                className={`slash-hint ${c.cmd === exactSlash ? 'exact' : ''}`}
-                onClick={() => { setInputValue(c.cmd + ' '); inputRef.current?.focus() }}
+                role="option"
+                aria-selected={c === selected}
+                className={`slash-hint ${c === selected ? 'selected' : ''}`}
+                onMouseEnter={() => setMenuIndex(i)}
+                onClick={() => acceptSlash(c)}
               >
                 <span className="slash-hint-cmd">{c.cmd}</span>
+                {c.arg && <span className="slash-hint-arg">{c.arg}</span>}
                 <span className="slash-hint-desc">{c.desc}</span>
               </button>
             ))}
@@ -292,10 +324,28 @@ export default function ChatMain({
             value={inputValue}
             onChange={e => {
               setInputValue(e.target.value)
+              setSlashDismissed(false)   // typing re-opens the palette after Esc/accept
               e.target.style.height = 'auto'
               e.target.style.height = `${Math.min(e.target.scrollHeight, 200)}px`
             }}
             onKeyDown={e => {
+              // Command palette navigation takes priority while it's open, but
+              // Enter still runs a fully-typed command (e.g. "/doctor⏎").
+              if (menuVisible) {
+                if (e.key === 'ArrowDown') {
+                  e.preventDefault()
+                  setMenuIndex(i => (i + 1) % slashMatches.length); return
+                }
+                if (e.key === 'ArrowUp') {
+                  e.preventDefault()
+                  setMenuIndex(i => (i - 1 + slashMatches.length) % slashMatches.length); return
+                }
+                if (e.key === 'Escape') { e.preventDefault(); setSlashDismissed(true); return }
+                if (e.key === 'Tab') { e.preventDefault(); if (selected) acceptSlash(selected); return }
+                if (e.key === 'Enter' && !e.shiftKey && !exactComplete) {
+                  e.preventDefault(); if (selected) acceptSlash(selected); return
+                }
+              }
               if (e.key === 'Enter' && !e.shiftKey) {
                 e.preventDefault()
                 handleSubmit(e)

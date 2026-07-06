@@ -23,6 +23,10 @@ Type anything in the box below and press **Enter**. Like texting a friend.
 | \`/stuck\` | Lost? I look at your work and tell you the ONE next thing to do |
 | \`/opps\` | I find real opportunities for YOU — internships, grants, competitions, whatever fits your field |
 | \`/scan\` | Downloaded a file? I check it for viruses and tricks BEFORE you open it 🛡️ |
+| \`/getsafe\` + what you want | I tell you where to get it safely and how to run it without getting infected — before you download 🛡️ |
+| \`/caveman\` | I reply super short and fast (great on this laptop). \`/caveman off\` to stop |
+| \`/ponytail\` | I always pick the simplest solution and warn you about over-complicated code |
+| \`/gstack\` | Show git status of a project + write you a commit message (I never commit for you) 🌿 |
 | \`/task\` + a goal | My whole agent team builds it for you — you watch them work live 🏢 |
 | \`/loop\` + a goal | The team builds it AND keeps fixing it until it actually works |
 | \`/doctor\` | I check my own health (models, memory, temperature, disk) |

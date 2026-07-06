@@ -32,6 +32,33 @@ _active_model: str = ""  # updated on each stream request
 _msg_count = 0
 
 
+# ── Reply-style modes (/caveman, /ponytail) ──────────────────────────────────
+class ModeRequest(BaseModel):
+    mode: str
+    enabled: bool
+
+
+@router.get("/modes")
+async def get_chat_modes():
+    from app.services.chat_modes import get_modes, MODES
+    state = get_modes()
+    return {"modes": [
+        {"name": k, "enabled": state.get(k, False), "description": MODES[k][0]}
+        for k in MODES
+    ]}
+
+
+@router.post("/modes")
+async def set_chat_mode(req: ModeRequest):
+    from app.services.chat_modes import set_mode, MODES
+    try:
+        state = set_mode(req.mode, req.enabled)
+    except KeyError:
+        raise HTTPException(status_code=404,
+                            detail=f"Unknown mode '{req.mode}'. Available: {', '.join(MODES)}")
+    return {"modes": state}
+
+
 async def _reflexion_observe(question: str, response: str, base_url: str) -> None:
     """Fire-and-forget: score response quality, save high-quality patterns."""
     try:

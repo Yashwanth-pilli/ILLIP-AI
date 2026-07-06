@@ -179,6 +179,21 @@ export const api = {
     method: 'POST', headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ path }),
   }).then(r => r.json()),
+  guardianGetSafe: (query = '') => fetch(`${BASE}/guardian/getsafe`, {
+    method: 'POST', headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ query }),
+  }).then(r => r.json()),
+  gstack: (path = '') => fetch(`${BASE}/gstack/report`, {
+    method: 'POST', headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ path }),
+  }).then(r => r.json()),
+
+  // Reply-style modes (caveman / ponytail)
+  getChatModes: () => fetch(`${BASE}/chat/modes`).then(r => r.json()),
+  setChatMode: (mode, enabled) => fetch(`${BASE}/chat/modes`, {
+    method: 'POST', headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ mode, enabled }),
+  }).then(r => r.json()),
 
   // Agent orchestration SSE URL
   agentsRunUrl: (task, dest = '') => `/api/agents/run/stream?task=${encodeURIComponent(task)}${dest ? `&dest=${encodeURIComponent(dest)}` : ''}`,

@@ -96,7 +96,7 @@ def test_routes_registered():
     idea_paths = {r.path for r in idea.router.routes}
     assert idea_paths == {"/idea/journey", "/idea/stuck", "/idea/opportunities", "/idea/vault"}
     guardian_paths = {r.path for r in guardian.router.routes}
-    assert guardian_paths == {"/guardian/scan"}
+    assert guardian_paths == {"/guardian/scan", "/guardian/getsafe"}
     # and both are wired into the api module (import side effect registers them)
     import app.api as api_module
     src = open(api_module.__file__, encoding="utf-8").read()

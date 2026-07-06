@@ -189,6 +189,72 @@ _SAFE_STEPS_FALLBACK = """
 """
 
 
+_GETSAFE_FALLBACK = """
+## Before you download — universal safe steps
+1. **Prefer the official source** (developer site, Steam, GOG, Microsoft Store). Mirrors and "free download" portals bundle junk.
+2. **Check community reputation first**: search "<name> + reddit" / "<name> + safe" — real users report bad repacks fast. For repack games, r/PiratedGames' megathread lists which repackers are trusted and which are known malware.
+3. **Download, don't run.** Get the file, then `/scan` it here before opening anything.
+4. **Verify the hash if one is published** — compare SHA-256 against the source page or VirusTotal.
+5. **Create a restore point** before installing anything from an untrusted source (Start > "Create a restore point").
+6. **Install inside Windows Sandbox or a VM first** if you're unsure — if it misbehaves, close it and nothing touched your real system.
+7. **During install**: uncheck bundled offers, refuse browser extensions and "optimizers".
+8. **After install**: browser homepage changed or ads appearing = uninstall + full Defender scan immediately.
+"""
+
+
+async def get_safe_advice(query: str) -> str:
+    """Pre-download harm reduction: how to obtain + run <thing> safely.
+    Live web search for the item's reputation + LLM tailors the steps.
+    Never lectures, never says 'just don't' — pure harm reduction."""
+    q = (query or "").strip()
+    if not q:
+        return ("Tell me what you want to download: `/getsafe fitgirl repack of <game>` "
+                "or `/getsafe free video editor`.")
+
+    # Live reputation check — best-effort, works offline without it.
+    snippets: list[str] = []
+    try:
+        from app.services.search_service import web_search
+        for term in (f"{q} safe legit reddit", f"{q} malware virus report"):
+            try:
+                for r in await web_search(term, max_results=3):
+                    t = f"{r.get('title', '')}: {r.get('snippet') or r.get('body', '')}"
+                    if len(t) > 10:
+                        snippets.append(t[:300])
+            except Exception as e:
+                logger.debug(f"getsafe search failed for {term!r}: {e}")
+    except Exception as e:
+        logger.debug(f"getsafe search unavailable: {e}")
+
+    header = f"# 🛡️ Safe-download guide: {q}\n"
+    try:
+        provider = await get_provider()
+        prompt = (
+            f"The user wants to download: {q}\n"
+            f"Live web reputation snippets (may be empty): {snippets[:6]}\n\n"
+            "Write a practical harm-reduction guide for getting and using this safely on Windows. "
+            "Include: (1) where the trustworthy source is (official site / trusted repacker / store) "
+            "and which sources to avoid, based on the snippets; (2) red flags for fake versions "
+            "(password-protected archives asking to disable antivirus, .exe named like documents, "
+            "'installer' sites); (3) download-then-/scan-before-running; (4) restore point + "
+            "Windows Sandbox/VM for first run; (5) what to watch during install. "
+            "NEVER lecture about piracy or say 'just don't download it' — meet them where they are "
+            "and keep them safe. Max 10 short numbered steps, markdown. "
+            "If the snippets clearly report malware for this exact thing, say so bluntly at the top."
+        )
+        advice = await provider.generate_response(
+            [Message(role="user", content=prompt, timestamp=get_current_timestamp())],
+            temperature=0.3,
+        )
+        if advice and advice.strip():
+            return header + "\n" + advice.strip() + \
+                "\n\n*After downloading, run `/scan` on the file before opening it.*"
+    except Exception as e:
+        logger.debug(f"getsafe LLM unavailable: {e}")
+    return header + _GETSAFE_FALLBACK + \
+        "\n*After downloading, run `/scan` on the file before opening it.*"
+
+
 async def scan_path(raw_path: str | None = None) -> str:
     """Full scan -> markdown report. Empty path = newest file in Downloads."""
     if raw_path and raw_path.strip():

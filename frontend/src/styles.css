@@ -633,22 +633,34 @@ body {
 .message-input::placeholder { color: var(--text2); }
 .message-input.slash-active { color: var(--cyan); font-weight: 600; }
 
-/* Slash-command hint bar */
+/* Slash-command palette */
 .slash-hints {
     display: flex; flex-direction: column; gap: 2px; margin-bottom: 6px;
     max-width: 1500px; margin-left: auto; margin-right: auto; width: 100%;
     background: var(--surface); border: 1px solid var(--border2); border-radius: 10px;
-    padding: 4px; max-height: 210px; overflow-y: auto;
+    padding: 4px; max-height: 280px; overflow-y: auto;
+    box-shadow: 0 8px 24px rgba(0,0,0,.35);
 }
+.slash-hints-head {
+    display: flex; justify-content: space-between; align-items: center;
+    padding: 4px 10px 6px; margin-bottom: 2px;
+    border-bottom: 1px solid var(--border2);
+    font-size: 11px; text-transform: uppercase; letter-spacing: .06em; color: var(--text2);
+}
+.slash-hints-keys { text-transform: none; letter-spacing: 0; opacity: .8; }
 .slash-hint {
     display: flex; align-items: baseline; gap: 10px; text-align: left;
     background: none; border: none; cursor: pointer; padding: 6px 10px; border-radius: 7px;
     color: var(--text); font-family: inherit;
 }
-.slash-hint:hover { background: rgba(255,255,255,.04); }
-.slash-hint.exact { background: rgba(79,209,197,.1); }
-.slash-hint-cmd { color: var(--cyan); font-weight: 700; font-size: 13px; flex-shrink: 0; min-width: 90px; }
-.slash-hint-desc { color: var(--text2); font-size: 12px; }
+/* Keyboard highlight (arrows) and mouse hover share one look so they never fight. */
+.slash-hint.selected { background: rgba(79,209,197,.14); }
+.slash-hint-cmd { color: var(--cyan); font-weight: 700; font-size: 13px; flex-shrink: 0; min-width: 92px; }
+.slash-hint-arg {
+    color: var(--text2); font-size: 11px; font-family: ui-monospace, monospace;
+    background: rgba(255,255,255,.05); border-radius: 4px; padding: 1px 5px; flex-shrink: 0;
+}
+.slash-hint-desc { color: var(--text2); font-size: 12px; margin-left: auto; text-align: right; }
 
 /* Diagnostics / repair overlay (ephemeral — never touches chat) */
 .diag-overlay {

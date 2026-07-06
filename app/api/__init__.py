@@ -35,6 +35,7 @@ from app.api.routes import (
     idea,
     guardian,
     reminders,
+    gstack,
 )
 
 # n8n, whatsapp routes — import separately (may not exist yet)
@@ -86,6 +87,7 @@ api_router.include_router(terminal.router)
 api_router.include_router(idea.router)
 api_router.include_router(guardian.router)
 api_router.include_router(reminders.router)
+api_router.include_router(gstack.router)
 
 if _has_n8n:
     api_router.include_router(n8n_routes.router)

@@ -427,6 +427,30 @@ export default function App() {
       { cmd: '/opps', run: (arg) => api.ideaOpportunities(arg), wait: '🌱 Searching live opportunities for your field…' },
       { cmd: '/opportunities', run: (arg) => api.ideaOpportunities(arg), wait: '🌱 Searching live opportunities for your field…' },
       { cmd: '/scan', run: (arg) => api.guardianScan(arg), wait: '🛡️ Scanning for malicious signs (heuristics + Windows Defender)…' },
+      { cmd: '/getsafe', run: (arg) => api.guardianGetSafe(arg), wait: '🛡️ Checking reputation + building a safe-download guide…', needArg: 'What do you want to download? `/getsafe a free video editor` or `/getsafe repack of <game>`' },
+      { cmd: '/gstack', run: (arg) => api.gstack(arg), wait: '🌿 Reading the repo (branch, status, staged changes)…' },
+      {
+        cmd: '/caveman',
+        wait: '⚙️ Updating reply style…',
+        run: async (arg) => {
+          const on = arg.trim().toLowerCase() !== 'off'
+          await api.setChatMode('caveman', on)
+          return { report_md: on
+            ? '🗿 **Caveman mode ON.** ILLIP now replies terse — faster on your hardware. Turn off: `/caveman off`.'
+            : '🗿 **Caveman mode OFF.** ILLIP back to normal replies.' }
+        },
+      },
+      {
+        cmd: '/ponytail',
+        wait: '⚙️ Updating solution style…',
+        run: async (arg) => {
+          const on = arg.trim().toLowerCase() !== 'off'
+          await api.setChatMode('ponytail', on)
+          return { report_md: on
+            ? '🐴 **Ponytail mode ON.** ILLIP now favours the simplest solution and flags over-engineering. Turn off: `/ponytail off`.'
+            : '🐴 **Ponytail mode OFF.**' }
+        },
+      },
       {
         cmd: '/remind',
         wait: '⏰ Setting reminder…',
