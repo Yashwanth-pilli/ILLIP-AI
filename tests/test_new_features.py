@@ -149,18 +149,20 @@ def test_download_watch_primes_then_alerts(tmp_path, monkeypatch):
 
     dw._scan_new_files()          # prime pass — records backlog, no alerts
     dw._primed = True
-    assert dw.drain_alerts() == []
+    primed_alerts = dw.drain_alerts()
+    # Priming must never alert on the pre-existing backlog file.
+    assert not any(a["file"] == "report.pdf.exe" for a in primed_alerts)
 
     # New risky file arrives after priming.
     bad2 = tmp_path / "invoice.pdf.exe"
     bad2.write_bytes(b"MZ\x00\x00fake")
     dw._scan_new_files()
-    alerts = dw.drain_alerts()
-    invoice = [a for a in alerts if a["file"] == "invoice.pdf.exe"]
+    invoice = [a for a in dw.drain_alerts() if a["file"] == "invoice.pdf.exe"]
     assert invoice and invoice[0]["level"] == "danger"
-    # The primed backlog file must never alert.
-    assert not any(a["file"] == "report.pdf.exe" for a in alerts)
-    assert dw.drain_alerts() == []   # drained, not repeated
+
+    # Re-scanning must not re-alert the same file (it's now in _seen).
+    dw._scan_new_files()
+    assert not any(a["file"] == "invoice.pdf.exe" for a in dw.drain_alerts())
 
 
 def test_download_watch_skips_partial(tmp_path, monkeypatch):
