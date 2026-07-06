@@ -8,11 +8,13 @@ ILLIP AI is a portable, private, self-improving AI system that runs on your own 
 
 ## Quick Start
 
-**Prerequisites:** Python 3.9+, PowerShell (Windows)
+**Easiest:** download the zip, extract it, and **double-click `setup.bat`**. It finds or installs Python and Ollama (asking your permission first), installs everything, picks the right AI model for your hardware, and puts a small cat 🐱 on your desktop. Click the cat — ILLIP starts and opens in your browser. Anything it can't do automatically, it explains step by step.
+
+**Manual (developers):**
 
 ```powershell
-# Install and set up (also builds the frontend)
-.\scripts\setup.ps1
+# Install and set up
+.\setup.ps1
 
 # Start the app — serves the UI and API from one port
 .\scripts\run_backend.ps1

@@ -14,15 +14,27 @@ ILLIP AI is a local-first AI assistant platform:
 
 No cloud account is required for the default mock provider.
 
-## First Run
+## First Run (easiest — no terminal needed)
+
+Double-click **`setup.bat`** in the project root. It will:
+
+1. Find or install Python (asks your permission first)
+2. Install all dependencies
+3. Find or install Ollama, look at your hardware, and download the right AI model (asks first — it's a few GB)
+4. Put a small cat 🐱 on your desktop and screen
+
+**Click the cat to start ILLIP.** Drag it anywhere; right-click it to quit.
+If setup can't do something automatically, it explains exactly what to do, step by step.
+
+## First Run (manual, for developers)
 
 Open PowerShell in the project root:
 
 ```powershell
-.\scripts\setup.ps1
+.\setup.ps1
 ```
 
-Build the frontend once (re-run after changing anything in `frontend/src/`):
+The frontend is pre-built in `frontend/dist/`. To rebuild after changing `frontend/src/`:
 
 ```powershell
 cd frontend; npm install; npm run build; cd ..
