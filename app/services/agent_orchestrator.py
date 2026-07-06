@@ -59,6 +59,16 @@ def _is_command_snippet(code: str, lang: str) -> bool:
     return False
 
 
+def _file_url(run_dir: Path, fname: str) -> str:
+    """Served URL for a file in run_dir. WS_ROOT is served at /data/terminal, so
+    the URL is that prefix + the run_dir's path relative to WS_ROOT."""
+    try:
+        rel = run_dir.resolve().relative_to(WS_ROOT.resolve())
+        return f"/data/terminal/{rel.as_posix()}/{fname}"
+    except Exception:
+        return f"/data/terminal/agent_runs/{run_dir.name}/{fname}"
+
+
 def extract_and_write_files(text: str, run_dir: Path, seen_hashes: set | None = None) -> list[dict]:
     """Pull fenced code blocks from agent output and write each to a real file.
     Filename comes from the info string (```py:app.py), a hint in the line just
@@ -122,7 +132,7 @@ def extract_and_write_files(text: str, run_dir: Path, seen_hashes: set | None = 
             seen[fname] = 1
             fpath.write_text(code, encoding="utf-8")
             written.append({"name": fname, "lang": lang or "text", "bytes": len(code.encode()),
-                            "url": f"/data/terminal/agent_runs/{run_dir.name}/{fname}"})
+                            "url": _file_url(run_dir, fname)})
         except Exception as e:
             logger.warning(f"Orchestrator file write failed ({fname}): {e}")
     return written
@@ -204,16 +214,39 @@ _PLAN_PROMPT = (
 )
 
 
-async def run_task_stream(task: str) -> AsyncGenerator[dict, None]:
-    """Run `task` through Planner + agents, yielding live progress events."""
+def _safe_dest_folder(dest: str) -> str:
+    """Sanitize a user-chosen build folder name to a single safe segment kept
+    inside the workspace (no path traversal, no drive letters)."""
+    dest = (dest or "").strip().replace("\\", "/")
+    dest = dest.split("/")[-1]                       # last segment only
+    dest = re.sub(r"[^\w.\- ]", "", dest).strip()    # drop anything weird
+    dest = dest.replace(" ", "_")[:64]
+    return dest
+
+
+async def run_task_stream(task: str, dest: str = "", out_dir: Path | None = None) -> AsyncGenerator[dict, None]:
+    """Run `task` through Planner + agents, yielding live progress events.
+
+    dest: user-chosen folder NAME, sandboxed to WS_ROOT/<dest>/ (web UI path).
+    out_dir: absolute folder to build into, NO sandbox — CLI-only, where the
+    user runs on their own machine against their own explicit folder. When set
+    it wins over dest. Empty -> auto agent_runs/run_<ts>/."""
     registry = get_agent_registry()
     available = set(registry.get_available_agents())
 
-    # Per-run workspace INSIDE the shell root, so files the agents write and
-    # commands they run via run_shell share the same folder. Served at
-    # /data/terminal/agent_runs/<id>/.
-    run_id = f"run_{int(time.time())}"
-    run_dir = WS_ROOT / "agent_runs" / run_id
+    # Per-run workspace. Files the agents write and commands they run via
+    # run_shell share the same folder.
+    if out_dir is not None:
+        run_dir = Path(out_dir).expanduser().resolve()
+        run_id = run_dir.name
+    else:
+        safe_dest = _safe_dest_folder(dest)
+        if safe_dest:
+            run_id = safe_dest
+            run_dir = WS_ROOT / safe_dest
+        else:
+            run_id = f"run_{int(time.time())}"
+            run_dir = WS_ROOT / "agent_runs" / run_id
     set_cwd(run_dir)
     all_files: list[dict] = []
     seen_hashes: set = set()  # dedup identical code across ALL steps
@@ -248,13 +281,16 @@ async def run_task_stream(task: str) -> AsyncGenerator[dict, None]:
             step_task += (
                 "\n\nWrite COMPLETE, runnable code. Put each file in its own fenced block "
                 "with the filename in the info string, e.g. ```python:app.py or ```html:index.html. "
-                "No placeholders or TODOs."
+                "No placeholders or TODOs. CREATE FILES ONLY with these fenced blocks — they are "
+                "saved to disk automatically. Do NOT use shell to write files (no `cat > f << EOF`, "
+                "no `echo > f`): the shell here is Windows cmd and heredocs fail."
             )
         # Tester/builder can actually run and verify via the shell.
         if agent_type in ("tester", "builder"):
             step_task += (
-                "\n\nYou can run commands with the run_shell tool (python, pytest, node, ls…) "
-                "to actually execute and verify the code. Report what the commands output."
+                "\n\nUse the run_shell tool ONLY to RUN and verify code (python file.py, pytest, "
+                "node file.js, dir…), never to create files. The shell is Windows cmd. "
+                "Report what the commands output."
             )
         try:
             res = await agent.execute_task(step_task, context=dict(context))
@@ -284,7 +320,7 @@ async def run_task_stream(task: str) -> AsyncGenerator[dict, None]:
                 try:
                     all_files.append({"name": p.name, "lang": p.suffix.lstrip(".") or "text",
                                       "bytes": p.stat().st_size,
-                                      "url": f"/data/terminal/agent_runs/{run_id}/{p.name}"})
+                                      "url": _file_url(run_dir, p.name)})
                 except Exception:
                     pass
 
@@ -323,9 +359,10 @@ def parse_verdict(text: str) -> tuple[bool, str]:
     return True, ""
 
 
-async def run_task_loop_stream(task: str, max_loops: int = 3) -> AsyncGenerator[dict, None]:
+async def run_task_loop_stream(task: str, max_loops: int = 3, dest: str = "") -> AsyncGenerator[dict, None]:
     """Agentic loop: run the crew, have a reviewer verdict the result against the
-    goal, feed the feedback into a retry. Stops on done or max_loops."""
+    goal, feed the feedback into a retry. Stops on done or max_loops.
+    dest: user-chosen build folder, threaded to run_task_stream."""
     max_loops = max(1, min(int(max_loops), 5))
     registry = get_agent_registry()
     feedback = ""
@@ -341,7 +378,7 @@ async def run_task_loop_stream(task: str, max_loops: int = 3) -> AsyncGenerator[
             f"Fix these specific problems:\n{feedback}"
         )
         final_ev = None
-        async for ev in run_task_stream(current):
+        async for ev in run_task_stream(current, dest=dest):
             ev["loop"] = loop_n
             if ev.get("type") == "final":
                 final_ev = ev

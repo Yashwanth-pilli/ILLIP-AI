@@ -205,8 +205,16 @@ export default function ChatMain({
           >🎮 Games</button>
           <button
             className="action-btn team"
-            onClick={() => { const g = inputValue.trim(); if (g) { onChat('/task ' + g); setInputValue('') } }}
-            title="Run your message through the agent company"
+            onClick={() => {
+              const g = inputValue.trim()
+              if (g) { onChat('/task ' + g); setInputValue('') }
+              else {
+                // No goal typed — don't silently do nothing. Prompt for one.
+                inputRef.current?.focus()
+                setInputValue('build me ')
+              }
+            }}
+            title="Type what to build, then hit Team to run it through the agent crew"
           >🏢 Team</button>
           <button
             className="action-btn term-open"

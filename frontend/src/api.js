@@ -181,8 +181,8 @@ export const api = {
   }).then(r => r.json()),
 
   // Agent orchestration SSE URL
-  agentsRunUrl: (task) => `/api/agents/run/stream?task=${encodeURIComponent(task)}`,
-  agentsLoopUrl: (task, maxLoops = 3) => `/api/agents/loop/stream?task=${encodeURIComponent(task)}&max_loops=${maxLoops}`,
+  agentsRunUrl: (task, dest = '') => `/api/agents/run/stream?task=${encodeURIComponent(task)}${dest ? `&dest=${encodeURIComponent(dest)}` : ''}`,
+  agentsLoopUrl: (task, maxLoops = 3, dest = '') => `/api/agents/loop/stream?task=${encodeURIComponent(task)}&max_loops=${maxLoops}${dest ? `&dest=${encodeURIComponent(dest)}` : ''}`,
   agentsClarify: (task) => fetch(`${BASE}/agents/clarify?task=${encodeURIComponent(task)}`).then(r => r.json()),
   // Upload ANY file (any size) with progress callback. XHR because fetch has no upload progress.
   uploadFile: (file, onProgress) => new Promise((resolve, reject) => {

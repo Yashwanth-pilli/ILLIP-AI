@@ -15,7 +15,10 @@ router = APIRouter(prefix="/agents", tags=["agents"])
 
 
 @router.get("/run/stream")
-async def run_agents_stream(task: str = Query(..., description="The goal to run through the agent company")):
+async def run_agents_stream(
+    task: str = Query(..., description="The goal to run through the agent company"),
+    dest: str = Query("", description="Folder name to create the work in (sandboxed to the workspace)"),
+):
     """Run a task through Planner + agents, streaming live progress via SSE.
 
     Events: step_start (agent + what it's doing), plan (the full step list),
@@ -25,7 +28,7 @@ async def run_agents_stream(task: str = Query(..., description="The goal to run 
 
     async def gen():
         try:
-            async for ev in run_task_stream(task):
+            async for ev in run_task_stream(task, dest=dest):
                 yield f"data: {json.dumps(ev)}\n\n"
         except Exception as e:
             logger.error(f"Agent orchestration error: {e}")
@@ -72,6 +75,7 @@ async def clarify_task(task: str = Query(..., description="Goal to generate clar
 async def run_agents_loop_stream(
     task: str = Query(..., description="The goal to loop on until QA passes"),
     max_loops: int = Query(3, ge=1, le=5),
+    dest: str = Query("", description="Folder name to create the work in (sandboxed to the workspace)"),
 ):
     """Agentic LOOP: run crew -> QA verdict -> retry with feedback until done.
 
@@ -82,7 +86,7 @@ async def run_agents_loop_stream(
 
     async def gen():
         try:
-            async for ev in run_task_loop_stream(task, max_loops):
+            async for ev in run_task_loop_stream(task, max_loops, dest=dest):
                 yield f"data: {json.dumps(ev)}\n\n"
         except Exception as e:
             logger.error(f"Agent loop error: {e}")

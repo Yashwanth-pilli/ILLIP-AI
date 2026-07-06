@@ -9,6 +9,11 @@ const AGENT_ICON = {
 }
 const ic = (a) => AGENT_ICON[a] || '🤖'
 
+// Suggest a tidy folder name from the task text.
+const slugFolder = (t) =>
+  (t || 'my-project').toLowerCase().replace(/[^\w\s-]/g, '').trim()
+    .split(/\s+/).slice(0, 4).join('-').slice(0, 40) || 'my-project'
+
 // Live view of the agent company working a task. Streams steps over SSE and
 // shows each agent thinking → working → done, then the combined result.
 export default function AgentsRunPanel({ task, loop = false, onClose }) {
@@ -22,22 +27,31 @@ export default function AgentsRunPanel({ task, loop = false, onClose }) {
   // Clarify phase (loop mode): ask questions BEFORE building, like top models do.
   const [questions, setQuestions] = useState(null)   // null=loading, []=none
   const [answers, setAnswers] = useState({})
-  const [startTask, setStartTask] = useState(loop ? null : task)
+  const [startTask, setStartTask] = useState(null)
+  // Folder phase: ask WHERE to create the work before anything is built.
+  const [dest, setDest] = useState(slugFolder(task))
+  const [destConfirmed, setDestConfirmed] = useState(false)
   const sseRef = useRef(null)
 
+  const confirmDest = () => {
+    setDestConfirmed(true)
+    if (!loop) setStartTask(task)   // plain /task: folder chosen -> build now
+    // loop mode: the clarify effect below fires once destConfirmed is true
+  }
+
   useEffect(() => {
-    if (!loop || !task) return
+    if (!loop || !task || !destConfirmed) return
     let alive = true
     api.agentsClarify(task)
       .then(d => { if (alive) setQuestions(d.questions || []) })
       .catch(() => { if (alive) setQuestions([]) })
     return () => { alive = false }
-  }, [task, loop])
+  }, [task, loop, destConfirmed])
 
-  // No questions came back -> start immediately
+  // No questions came back -> start immediately (folder already confirmed)
   useEffect(() => {
-    if (loop && questions !== null && questions.length === 0 && !startTask) setStartTask(task)
-  }, [questions, loop, task, startTask])
+    if (loop && destConfirmed && questions !== null && questions.length === 0 && !startTask) setStartTask(task)
+  }, [questions, loop, task, startTask, destConfirmed])
 
   const beginRun = (skip = false) => {
     const qa = skip ? [] : (questions || [])
@@ -51,7 +65,7 @@ export default function AgentsRunPanel({ task, loop = false, onClose }) {
 
   useEffect(() => {
     if (!startTask) return
-    const sse = new EventSource(loop ? api.agentsLoopUrl(startTask) : api.agentsRunUrl(startTask))
+    const sse = new EventSource(loop ? api.agentsLoopUrl(startTask, 3, dest) : api.agentsRunUrl(startTask, dest))
     sseRef.current = sse
     sse.onmessage = (e) => {
       let d; try { d = JSON.parse(e.data) } catch { return }
@@ -106,8 +120,31 @@ export default function AgentsRunPanel({ task, loop = false, onClose }) {
         </div>
         <div className="agents-run-task">🎯 {task}</div>
 
+        {/* Folder phase — ask WHERE to create the work, before anything is built */}
+        {!destConfirmed && (
+          <div className="agents-clarify">
+            <div className="agents-clarify-label">📁 Which folder should I create this in?</div>
+            <div className="agents-clarify-q">
+              <input
+                className="mem-search"
+                value={dest}
+                autoFocus
+                onChange={e => setDest(e.target.value)}
+                onKeyDown={e => e.key === 'Enter' && dest.trim() && confirmDest()}
+                placeholder="folder name"
+              />
+              <div style={{ fontSize: '11px', color: '#7070a0', marginTop: '4px' }}>
+                Created at <code>workspace/{slugFolder(dest) || 'my-project'}/</code> — files &amp; folders build one by one inside it.
+              </div>
+            </div>
+            <div className="agents-clarify-btns">
+              <button className="tab-action-btn" disabled={!dest.trim()} onClick={confirmDest}>📁 Use this folder</button>
+            </div>
+          </div>
+        )}
+
         {/* Clarify phase — questions before building */}
-        {loop && !startTask && (
+        {destConfirmed && loop && !startTask && (
           <div className="agents-clarify">
             {questions === null && <div className="agent-step working"><em>🤔 Thinking about what to ask you…</em></div>}
             {questions !== null && questions.length > 0 && (

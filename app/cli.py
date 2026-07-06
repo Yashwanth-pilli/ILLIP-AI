@@ -6,6 +6,8 @@ Usage:
   illip start --reload     — dev mode with auto-reload
   illip status             — check if server is running
   illip version            — print version
+  illip build "make a snake game" --dir ./game   — run the agent crew on a folder
+  illip do "add tests here"                       — build in the current folder
 """
 
 import sys
@@ -75,6 +77,66 @@ def main():
     def version():
         """Print version."""
         click.echo(f"ILLIP AI {_get_version()}")
+
+    @cli.command()
+    @click.argument("task", nargs=-1, required=True)
+    @click.option("--dir", "-d", "target_dir", default=".", help="Folder to build the work into (default: current dir)")
+    def build(task, target_dir):
+        """Run the agent crew on a folder — plans, writes files, verifies. Like a
+        local coding agent working in TARGET_DIR on your own machine."""
+        _run_build(click, " ".join(task), target_dir)
+
+    @cli.command()
+    @click.argument("task", nargs=-1, required=True)
+    def do(task):
+        """Build in the CURRENT folder. Shortcut for `illip build ... --dir .`."""
+        _run_build(click, " ".join(task), ".")
+
+    def _run_build(click, task_text, target_dir):
+        import asyncio
+        import logging
+        from pathlib import Path
+        # Windows console is cp1252; agent output may contain unicode. Reconfigure
+        # stdout to utf-8 (replace on failure) so a stray emoji can't crash the run.
+        try:
+            sys.stdout.reconfigure(encoding="utf-8", errors="replace")
+        except Exception:
+            pass
+        # Quiet the app logger so the CLI shows clean progress, not internal INFO spam.
+        logging.getLogger("illip").setLevel(logging.WARNING)
+        out = Path(target_dir).expanduser().resolve()
+        out.mkdir(parents=True, exist_ok=True)
+        # ASCII only — the Windows console (cp1252) can't encode emoji and crashes.
+        click.echo(f"[ILLIP] agent crew -> {out}")
+        click.echo(f"[goal] {task_text}\n")
+
+        async def _go():
+            from app.services.agent_orchestrator import run_task_stream
+            n_files = 0
+            async for ev in run_task_stream(task_text, out_dir=out):
+                t = ev.get("type")
+                if t == "plan":
+                    steps = ev.get("steps", [])
+                    click.echo("[plan] " + " -> ".join(s.get("agent", "?") for s in steps))
+                elif t == "step_start":
+                    click.echo(f"  - {ev.get('agent')}: {ev.get('task','')[:80]}")
+                elif t == "files":
+                    for f in ev.get("files", []):
+                        n_files += 1
+                        click.echo(f"    wrote {f.get('name')} ({f.get('bytes')}b)")
+                elif t == "final":
+                    click.echo(f"\n[done] {n_files} file(s) in {out}")
+                elif t == "error":
+                    click.echo(f"[error] {ev.get('message')}")
+
+        try:
+            asyncio.run(_go())
+        except KeyboardInterrupt:
+            click.echo("\nStopped.")
+        except Exception as e:
+            click.echo(f"❌ Build failed: {e}")
+            click.echo("Is Ollama running? Try: illip status")
+            sys.exit(1)
 
     @cli.command()
     def setup():
