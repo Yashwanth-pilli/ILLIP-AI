@@ -22,19 +22,23 @@ def main():
 
     import click  # noqa: F811
 
-    @click.group(invoke_without_command=True)
-    @click.option("--continue", "-c", "resume", is_flag=True, help="Resume your last terminal conversation")
-    @click.option("--resume", "resume2", is_flag=True, help="Resume your last terminal conversation")
-    @click.pass_context
-    def cli(ctx, resume, resume2):
+    @click.group()
+    def cli():
         """ILLIP AI — your AI company, in your device.
 
-        Run `illip` with no command to chat in the terminal (like a local coding
-        agent). `illip --continue` resumes your last conversation.
+        `illip` opens the web app. `illip code` drops into a terminal coding
+        agent for serious project work (like a local Claude Code).
         """
-        if ctx.invoked_subcommand is None:
-            from app.repl import run_repl
-            run_repl(resume=resume or resume2)
+        pass
+
+    @cli.command()
+    @click.option("--continue", "-c", "resume", is_flag=True, help="Resume your last terminal conversation")
+    @click.option("--resume", "resume2", is_flag=True, help="Resume your last terminal conversation")
+    def code(resume, resume2):
+        """Terminal coding agent — chat, run tools, build in the current folder.
+        `illip code --continue` resumes your last conversation."""
+        from app.repl import run_repl
+        run_repl(resume=resume or resume2)
 
     @cli.command()
     @click.option("--host", default=None, help="Bind host (default from .env or 127.0.0.1)")
