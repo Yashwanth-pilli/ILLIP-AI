@@ -13,6 +13,7 @@ export default function ChatMain({
   activeDocument, onClearActiveDocument,
   researchOpen, researchDepth, researchSteps, researchAnswer, researchSources, isResearching,
   browserOpen, browserSteps, browserScreen, browserResult, isBrowsing,
+  hasSavedSession, onClearBrowserSession,
   imagePanelOpen, videoPanelOpen, activeModel,
   onChat, onStop, onRegenerate, onDeleteMessage, onEditMessage, onOpenArtifact, artifactHtml, onCloseArtifact, onOpenGames, onOpenTerminal,
   onToggleForceLarge, onToggleForceSearch, onMic, onSetPendingImage, onSetPendingDocument, onUploadFile,
@@ -228,6 +229,8 @@ export default function ChatMain({
             onClose={onCloseBrowser}
             onRun={onRunBrowser}
             defaultTask={inputValue.trim()}
+            hasSavedSession={hasSavedSession}
+            onClearSession={onClearBrowserSession}
           />
         )}
 
@@ -253,7 +256,8 @@ export default function ChatMain({
                 handleSubmit(e)
               }
             }}
-            placeholder={isLoading ? 'ILLIP is working — type your next message meanwhile…' : 'Message ILLIP… (Shift+Enter for a new line)'}
+            placeholder={isLoading ? 'ILLIP is working…' : 'Message ILLIP… (Shift+Enter for a new line)'}
+            disabled={isLoading}
           />
           <button
             type="button"

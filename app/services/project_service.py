@@ -117,6 +117,19 @@ def list_projects() -> list[dict]:
     return projects
 
 
+def delete_project(project_id: str) -> bool:
+    """Delete a project folder (meta/memory/history/tasks). Default project is protected."""
+    if _safe_id(project_id) == DEFAULT_PROJECT:
+        raise ValueError("Cannot delete the default project.")
+    d = _project_dir(project_id)
+    if not (d / "meta.json").exists():
+        return False
+    import shutil
+    shutil.rmtree(d)
+    logger.info(f"Project deleted: {project_id}")
+    return True
+
+
 def ensure_default_project() -> dict:
     if not _meta_path(DEFAULT_PROJECT).exists():
         return create_project("Default", "Default project for all conversations")

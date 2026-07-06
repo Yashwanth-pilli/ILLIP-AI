@@ -1,6 +1,6 @@
 import React, { useState } from 'react'
 
-export default function BrowserPanel({ steps, screen, result, isActive, onClose, onRun, defaultTask }) {
+export default function BrowserPanel({ steps, screen, result, isActive, onClose, onRun, defaultTask, hasSavedSession, onClearSession }) {
   const [task, setTask] = useState(defaultTask || '')
   const [startUrl, setStartUrl] = useState('')
   const [headless, setHeadless] = useState(true)
@@ -9,6 +9,12 @@ export default function BrowserPanel({ steps, screen, result, isActive, onClose,
     <div className="browser-panel">
       <div className="browser-header">
         <span>🌐 Browser Agent</span>
+        {hasSavedSession && (
+          <span className="session-badge" title="Logged-in session saved — future runs stay signed in">
+            🔐 Session saved
+            <button className="session-clear-btn" onClick={onClearSession} title="Clear saved login">🗑️</button>
+          </span>
+        )}
         <label className="browser-mode-toggle">
           <input type="checkbox" checked={!headless} onChange={e => setHeadless(!e.target.checked)} />
           <span style={{marginLeft:'4px'}}>Show browser</span>

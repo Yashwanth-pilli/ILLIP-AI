@@ -21,6 +21,10 @@ from app.utils import logger
 
 HEADLESS = os.getenv("BROWSER_HEADLESS", "true").lower() != "false"
 
+# One persistent browser identity (cookies/localStorage) — log in once with
+# "Show browser" checked, session auto-saves, future runs (even headless) stay logged in.
+DEFAULT_SESSION_PATH = Path("data") / "browser_sessions" / "session.json"
+
 # Where Playwright stores downloaded browsers (Windows / Linux / Mac)
 def _playwright_browsers_dir() -> Path:
     if sys.platform == "win32":
@@ -285,9 +289,10 @@ class PageState:
 
 class BrowserController:
 
-    def __init__(self, headless: bool = HEADLESS, slow_mo: int = 50):
+    def __init__(self, headless: bool = HEADLESS, slow_mo: int = 50, use_session: bool = True):
         self._headless = headless
         self._slow_mo = slow_mo
+        self._use_session = use_session
         self._playwright = None
         self._browser = None
         self._context = None
@@ -306,7 +311,7 @@ class BrowserController:
                 "--disable-features=IsolateOrigins,site-per-process",
             ],
         )
-        self._context = await self._browser.new_context(
+        context_kwargs = dict(
             viewport={"width": 1440, "height": 900},
             user_agent=(
                 "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
@@ -315,6 +320,10 @@ class BrowserController:
             ),
             ignore_https_errors=True,   # lab environments often use self-signed certs
         )
+        if self._use_session and DEFAULT_SESSION_PATH.exists():
+            context_kwargs["storage_state"] = str(DEFAULT_SESSION_PATH)
+            logger.info("BrowserController: restored saved session (cookies/localStorage)")
+        self._context = await self._browser.new_context(**context_kwargs)
         # Mask automation detection
         await self._context.add_init_script("""
             Object.defineProperty(navigator, 'webdriver', {get: () => undefined});
@@ -322,7 +331,21 @@ class BrowserController:
         self._page = await self._context.new_page()
         logger.info(f"BrowserController started (headless={self._headless})")
 
+    async def save_session(self) -> bool:
+        """Persist cookies/localStorage so future runs (incl. headless) stay logged in."""
+        if not self._context:
+            return False
+        try:
+            DEFAULT_SESSION_PATH.parent.mkdir(parents=True, exist_ok=True)
+            await self._context.storage_state(path=str(DEFAULT_SESSION_PATH))
+            return True
+        except Exception as e:
+            logger.warning(f"BrowserController: save_session failed: {e}")
+            return False
+
     async def stop(self) -> None:
+        if self._use_session:
+            await self.save_session()
         try:
             if self._browser:
                 await self._browser.close()

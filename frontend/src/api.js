@@ -40,6 +40,8 @@ export const api = {
     method: 'POST', headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ name }),
   }).then(r => r.json()),
+  deleteProject: (projectId) =>
+    fetch(`${BASE}/projects/${encodeURIComponent(projectId)}`, { method: 'DELETE' }).then(r => r.json()),
 
   // Memory (long-term vector/FTS)
   memoryList: (projectId, search = '') =>
@@ -205,6 +207,17 @@ export const api = {
     if (startUrl) params += `&start_url=${encodeURIComponent(startUrl)}`
     return `/api/browser/stream?${params}`
   },
+  browserStatus: () => fetch(`${BASE}/browser/status`).then(r => r.json()),
+  browserClearSession: () => fetch(`${BASE}/browser/session`, { method: 'DELETE' }).then(r => r.json()),
+
+  // Reminders
+  reminders: () => fetch(`${BASE}/reminders/`).then(r => r.json()),
+  createReminder: (body) => fetch(`${BASE}/reminders/`, {
+    method: 'POST', headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(body),
+  }).then(r => r.json()),
+  deleteReminder: (id) => fetch(`${BASE}/reminders/${encodeURIComponent(id)}`, { method: 'DELETE' }).then(r => r.json()),
+  runReminderNow: (id) => fetch(`${BASE}/reminders/${encodeURIComponent(id)}/run`, { method: 'POST' }).then(r => r.json()),
 }
 
 export function formatUptime(s) {

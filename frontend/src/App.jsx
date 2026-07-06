@@ -8,6 +8,7 @@ import ChatMain from './components/ChatMain.jsx'
 import PluginDialog from './components/dialogs/PluginDialog.jsx'
 import InstallSkillDialog from './components/dialogs/InstallSkillDialog.jsx'
 import NewProjectDialog from './components/dialogs/NewProjectDialog.jsx'
+import NewChatChoiceDialog from './components/dialogs/NewChatChoiceDialog.jsx'
 import CreateJobModal from './components/dialogs/CreateJobModal.jsx'
 import MarketplaceModal from './components/dialogs/MarketplaceModal.jsx'
 import Toasts from './components/Toasts.jsx'
@@ -77,7 +78,6 @@ export default function App() {
   const [hardwareStatus, setHardwareStatus] = useState(null)
   const [hwLive, setHwLive] = useState(null)
   const [skills, setSkills] = useState([])
-  const [agents, setAgents] = useState([])
   const [plugins, setPlugins] = useState([])
   const [healthData, setHealthData] = useState(null)
   const [govPending, setGovPending] = useState([])
@@ -99,6 +99,7 @@ export default function App() {
   const [browserScreen, setBrowserScreen] = useState(null)
   const [browserResult, setBrowserResult] = useState(null)
   const [isBrowsing, setIsBrowsing] = useState(false)
+  const [hasSavedSession, setHasSavedSession] = useState(false)
   const browserSSERef = useRef(null)
 
   // ── Image / Video ───────────────────────────────────────────────────────────
@@ -112,6 +113,7 @@ export default function App() {
   const [pluginDialogOpen, setPluginDialogOpen] = useState(false)
   const [installSkillOpen, setInstallSkillOpen] = useState(false)
   const [newProjectOpen, setNewProjectOpen] = useState(false)
+  const [newChatChoiceOpen, setNewChatChoiceOpen] = useState(false)
   const [createJobOpen, setCreateJobOpen] = useState(false)
   const [marketplaceOpen, setMarketplaceOpen] = useState(false)
 
@@ -217,13 +219,6 @@ export default function App() {
     } catch {}
   }, [])
 
-  const loadAgents = useCallback(async () => {
-    try {
-      const d = await api.agents()
-      setAgents(d.agents || [])
-    } catch {}
-  }, [])
-
   const loadPlugins = useCallback(async () => {
     try {
       const d = await api.plugins()
@@ -269,6 +264,16 @@ export default function App() {
     } catch {}
   }, [])
 
+  // "Just chat" — instant, no naming step. Auto-titled so it still shows up
+  // sensibly in the Chats sidebar later.
+  const startBlankChat = useCallback(async () => {
+    const stamp = new Date().toLocaleString([], { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })
+    const p = await api.createProject(`Chat ${stamp}`)
+    await loadProjects()
+    setActiveProject(p.id)
+    setMessages([])
+  }, [loadProjects])
+
   const loadChatHistory = useCallback(async (projectId) => {
     try {
       const d = await api.chatHistory(projectId)
@@ -279,6 +284,19 @@ export default function App() {
     } catch {}
   }, [])
 
+  const deleteProject = useCallback(async (projectId) => {
+    if (projectId === 'default') return
+    if (!window.confirm('Delete this space? This removes its chat history and memory permanently.')) return
+    try {
+      await api.deleteProject(projectId)
+      if (activeProject === projectId) {
+        setActiveProject('default')
+        loadChatHistory('default')
+      }
+      await loadProjects()
+    } catch {}
+  }, [activeProject, loadProjects, loadChatHistory])
+
   useEffect(() => {
     // Initial load
     checkHealth()
@@ -286,7 +304,6 @@ export default function App() {
     loadHardwareStatus()
     loadModels()
     loadSkills()
-    loadAgents()
     loadPlugins()
     loadHealth()
     loadGov()
@@ -295,13 +312,20 @@ export default function App() {
     loadProjects()
     loadHwLive()
     initVoice()
-    loadChatHistory('default')
+    // ChatGPT-style fresh start: only auto-restore 'default' if it's actually
+    // empty. If it has prior messages, spin up a new blank chat instead — the
+    // old one stays reachable from the Chats sidebar, never lost.
+    ;(async () => {
+      try {
+        const d = await api.chatHistory('default')
+        if ((d.messages || []).length > 0) await startBlankChat()
+      } catch {}
+    })()
 
     // Polling
     const intervals = [
       setInterval(checkHealth, 10000),
       setInterval(loadSystemStatus, 10000),
-      setInterval(loadAgents, 30000),
       setInterval(loadHwLive, 5000),
       setInterval(loadModels, 60000),
       setInterval(loadHealth, 10000),
@@ -389,6 +413,38 @@ export default function App() {
       { cmd: '/opps', run: (arg) => api.ideaOpportunities(arg), wait: '🌱 Searching live opportunities for your field…' },
       { cmd: '/opportunities', run: (arg) => api.ideaOpportunities(arg), wait: '🌱 Searching live opportunities for your field…' },
       { cmd: '/scan', run: (arg) => api.guardianScan(arg), wait: '🛡️ Scanning for malicious signs (heuristics + Windows Defender)…' },
+      {
+        cmd: '/remind',
+        wait: '⏰ Setting reminder…',
+        needArg: 'Format: `/remind HH:MM your instruction` — e.g. `/remind 09:00 give me one LeetCode problem and solve it`',
+        run: async (arg) => {
+          const m = arg.match(/^(\d{1,2}:\d{2})\s+(.+)$/)
+          if (!m) return { report_md: "Format: `/remind HH:MM your instruction` — e.g. `/remind 09:00 daily leetcode problem`" }
+          return api.createReminder({ instruction: m[2], time_of_day: m[1], project_id: activeProject })
+        },
+      },
+      {
+        cmd: '/reminders',
+        wait: '⏰ Loading reminders…',
+        run: async () => {
+          const d = await api.reminders()
+          const list = d.reminders || []
+          if (!list.length) return { report_md: 'No reminders set. `/remind HH:MM your instruction` to add one.' }
+          const lines = list.map(r =>
+            `- **${r.time_of_day}** — ${r.instruction} ${r.enabled ? '' : '_(disabled)_'} — \`${r.id}\` (\`/unremind ${r.id}\`)`
+          )
+          return { report_md: `⏰ **Reminders**\n\n${lines.join('\n')}` }
+        },
+      },
+      {
+        cmd: '/unremind',
+        wait: '🗑️ Removing reminder…',
+        needArg: 'Give the reminder id — see `/reminders` for the list.',
+        run: async (arg) => {
+          await api.deleteReminder(arg.trim())
+          return { report_md: `Deleted reminder \`${arg.trim()}\`.` }
+        },
+      },
     ]
     if (typeof message === 'string' && message.trim().startsWith('/')) {
       const trimmed = message.trim()
@@ -745,6 +801,7 @@ export default function App() {
           setBrowserResult(data.result || '')
           if (data.screenshot_b64) setBrowserScreen(data.screenshot_b64)
         }
+        api.browserStatus().then(s => setHasSavedSession(!!s.has_saved_session)).catch(() => {})
         setBrowserSteps(prev => [...prev, {
           type: type === 'done' ? 'done' : 'error',
           text: type === 'done' ? `✅ Complete — ${data.steps_taken} steps` : `❌ Failed: ${data.reason}`
@@ -768,6 +825,14 @@ export default function App() {
       setIsBrowsing(false)
       setBrowserSteps(prev => [...prev, { type: 'error', text: '❌ Connection lost' }])
     }
+  }, [])
+
+  const clearBrowserSession = useCallback(async () => {
+    if (!window.confirm('Clear saved browser login? Next task will run logged out.')) return
+    try {
+      await api.browserClearSession()
+      setHasSavedSession(false)
+    } catch {}
   }, [])
 
   // ── Governance ──────────────────────────────────────────────────────────────
@@ -818,13 +883,15 @@ export default function App() {
         projects={projects}
         activeProject={activeProject}
         hwLive={hwLive}
+        isLoading={isLoading}
+        onDeleteProject={deleteProject}
         onSwitchModel={switchModel}
         onSwitchProject={(id) => {
           setActiveProject(id)
           loadChatHistory(id)
         }}
         onDismissSuggestion={() => setDismissedSuggestion(true)}
-        onNewProject={() => setNewProjectOpen(true)}
+        onNewProject={() => setNewChatChoiceOpen(true)}
         onRefresh={refreshSystem}
         onAutoSpeak={() => setAutoSpeak(p => !p)}
         autoSpeak={autoSpeak}
@@ -834,7 +901,6 @@ export default function App() {
         <NavRail
           activePanel={activePanel}
           onTogglePanel={togglePanel}
-          agentCount={agents.filter(a => a.is_available).length}
           govCount={govPending.length}
         />
 
@@ -847,7 +913,6 @@ export default function App() {
           modelsData={modelsData}
           pinnedModel={pinnedModel}
           skills={skills}
-          agents={agents}
           plugins={plugins}
           healthData={healthData}
           govPending={govPending}
@@ -868,6 +933,10 @@ export default function App() {
           onShowMarketplace={() => setMarketplaceOpen(true)}
           onCreateJob={() => setCreateJobOpen(true)}
           activeProject={activeProject}
+          projects={projects}
+          onSwitchProject={(id) => { setActiveProject(id); loadChatHistory(id) }}
+          onDeleteProject={deleteProject}
+          onNewChat={() => setNewChatChoiceOpen(true)}
         />
 
         <ChatMain
@@ -895,6 +964,8 @@ export default function App() {
           browserScreen={browserScreen}
           browserResult={browserResult}
           isBrowsing={isBrowsing}
+          hasSavedSession={hasSavedSession}
+          onClearBrowserSession={clearBrowserSession}
           imagePanelOpen={imagePanelOpen}
           videoPanelOpen={videoPanelOpen}
           activeModel={activeModelRef.current}
@@ -938,7 +1009,7 @@ export default function App() {
           onStartResearch={startResearch}
           onCloseResearch={() => { setResearchOpen(false); if (researchSSERef.current) researchSSERef.current.close() }}
           onSetResearchDepth={setResearchDepth}
-          onOpenBrowser={() => setBrowserOpen(true)}
+          onOpenBrowser={() => { setBrowserOpen(true); api.browserStatus().then(s => setHasSavedSession(!!s.has_saved_session)).catch(() => {}) }}
           onCloseBrowser={() => { setBrowserOpen(false); if (browserSSERef.current) browserSSERef.current.close() }}
           onRunBrowser={runBrowser}
           onOpenImage={() => setImagePanelOpen(true)}
@@ -973,6 +1044,13 @@ export default function App() {
           onInstalled={() => { setInstallSkillOpen(false); loadSkills() }}
         />
       )}
+      {newChatChoiceOpen && (
+        <NewChatChoiceDialog
+          onClose={() => setNewChatChoiceOpen(false)}
+          onPickChat={async () => { setNewChatChoiceOpen(false); await startBlankChat() }}
+          onPickProject={() => { setNewChatChoiceOpen(false); setNewProjectOpen(true) }}
+        />
+      )}
       {newProjectOpen && (
         <NewProjectDialog
           onClose={() => setNewProjectOpen(false)}
@@ -981,6 +1059,7 @@ export default function App() {
             setNewProjectOpen(false)
             await loadProjects()
             setActiveProject(p.id)
+            setMessages([])
           }}
         />
       )}

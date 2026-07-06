@@ -197,7 +197,11 @@ async def stream_chat_message(request: ChatRequest):
         if is_simple:
             recent = [{"role": m.role, "content": m.content} for m in raw_history[-8:]
                       if m.role in ("user", "assistant")]
-            sys_content = system_prompt + (f"\n\n{memory_ctx}" if memory_ctx else "")
+            sys_content = system_prompt
+            if memory_ctx:
+                sys_content += f"\n\n{memory_ctx}"
+            if search_ctx:
+                sys_content += f"\n\n{search_ctx}"
             messages = (
                 [Message(role="system", content=sys_content, timestamp=ts())]
                 + [Message(role=m["role"], content=m["content"], timestamp=ts()) for m in recent]

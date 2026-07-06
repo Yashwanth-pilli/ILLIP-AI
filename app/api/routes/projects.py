@@ -7,7 +7,7 @@ from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
 from typing import Optional
 from app.services.project_service import (
-    create_project, get_project, list_projects,
+    create_project, get_project, list_projects, delete_project,
     memory_get_all, memory_stats, history_load, history_clear,
     DEFAULT_PROJECT,
 )
@@ -65,3 +65,13 @@ async def clear_project_history(project_id: str):
         raise HTTPException(status_code=404, detail=f"Project '{project_id}' not found.")
     get_chat_service().clear_history(project_id)
     return {"status": "cleared", "project_id": project_id}
+
+
+@router.delete("/{project_id}")
+async def delete_project_endpoint(project_id: str):
+    if project_id == DEFAULT_PROJECT:
+        raise HTTPException(status_code=400, detail="Cannot delete the default project.")
+    if not get_project(project_id):
+        raise HTTPException(status_code=404, detail=f"Project '{project_id}' not found.")
+    delete_project(project_id)
+    return {"status": "deleted", "project_id": project_id}

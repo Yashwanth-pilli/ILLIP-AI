@@ -101,6 +101,9 @@ _NEEDS_SEARCH = [
     r'\b(github\.com|youtube\.com|twitter|reddit|instagram)\b',
     r'\bhow (much|many) .{1,40}\?',
     r'\bwhen (is|was|does|did) .{1,40}\?',
+    r'\b(best|good|top|nearby|near me)\b.{0,40}\b(restaurant|hotel|place|shop|store|biryani|food|cafe|spot|dhaba)s?\b',
+    r'\bwhere (can|do|to) (i|we) (find|get|eat|buy)\b',
+    r'\b(recommend|suggest)\b.{0,30}\b(place|restaurant|shop|spot|hotel)',
 ]
 
 # Patterns that block search even if _NEEDS_SEARCH matches

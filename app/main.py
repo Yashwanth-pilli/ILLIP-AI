@@ -138,7 +138,10 @@ async def lifespan(app: FastAPI):
     async def _safe_scheduler():
         try:
             from app.agents.scheduler_agent import get_scheduler
-            await get_scheduler().start()
+            scheduler = get_scheduler()
+            from app.services.reminder_service import check_due_reminders
+            scheduler.add_job("user_reminders", check_due_reminders, interval_s=60)
+            await scheduler.start()
         except Exception as e:
             logger.warning(f"Scheduler error (non-fatal): {e}")
     asyncio.create_task(_safe_scheduler())

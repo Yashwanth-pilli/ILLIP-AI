@@ -42,9 +42,6 @@ export default function GhostEnginePanel({ models, activeModel }) {
 
   return (
     <div>
-      <p style={{ color: '#7070a0', fontSize: 11, marginBottom: 10 }}>
-        Ghost Engine maps each model to an optimal GPU/CPU split for your hardware.
-      </p>
       {modelList.length === 0 && <p style={{ color: '#7070a0' }}>No models detected — run <code>ollama list</code></p>}
       {modelList.map(m => {
         const plan = plans[m.name]

@@ -24,10 +24,12 @@ function SafetyBadge({ hwLive }) {
 
 export default function Header({
   connected, statusText, modelsData, pinnedModel, ghostBadge,
-  dismissedSuggestion, projects, activeProject, hwLive,
+  dismissedSuggestion, projects, activeProject, hwLive, isLoading,
   onSwitchModel, onSwitchProject, onDismissSuggestion, onNewProject,
-  onRefresh, onAutoSpeak, autoSpeak,
+  onRefresh, onAutoSpeak, autoSpeak, onDeleteProject,
 }) {
+  const pressure = hwLive?.pressure || 'low'
+  const catClass = `cat-wrap pressure-${pressure}${isLoading ? ' thinking' : ''}`
   const suggestion = !dismissedSuggestion && modelsData?.recommended && modelsData?.active &&
     modelsData.recommended.split(':')[0] !== modelsData.active.split(':')[0]
       ? modelsData : null
@@ -36,7 +38,7 @@ export default function Header({
     <>
       <header className="app-header">
         <div className="logo-area">
-          <div className="cat-wrap">
+          <div className={catClass} title={isLoading ? 'ILLIP is thinking...' : undefined}>
             <img className="cat-logo" src="/illip-logo.png" alt="ILLIP" />
           </div>
           <div className="brand">
@@ -75,7 +77,10 @@ export default function Header({
             {!projects.length && <option value="default">📁 Default</option>}
           </select>
 
-          <button className="icon-btn" onClick={onNewProject} title="New project">+</button>
+          <button className="icon-btn" onClick={onNewProject} title="New space">+</button>
+          {activeProject !== 'default' && (
+            <button className="icon-btn" onClick={() => onDeleteProject(activeProject)} title="Delete this space">🗑️</button>
+          )}
           <button className={`mode-btn refresh-btn`} onClick={onRefresh} title="Clear context">↺ Refresh</button>
           <button
             className={`mode-btn ${autoSpeak ? 'active' : ''}`}

@@ -232,29 +232,37 @@ async def _ddg_full_search(query: str, max_results: int) -> List[Dict[str, str]]
 async def web_search(query: str, max_results: int = 5) -> List[Dict[str, str]]:
     """
     Free search — works globally, no API key required.
-    Priority: Local SearXNG → Public SearXNG → Brave → DDG full → Wikipedia + DDG instant
+    Local SearXNG, public SearXNG, Brave (if key set), and DDG all race concurrently —
+    first one back with real results wins. Public SearXNG instances are frequently
+    rate-limited/blocked (403/429) in practice; waiting on them one at a time before
+    ever trying DDG cost 5-9s of dead time on every search. Racing means a fast DDG
+    response no longer waits behind a slow/dead SearXNG instance.
     """
-    # 1. Local SearXNG (Docker, optional — best privacy)
-    results = await _local_searxng(query, max_results)
+    tasks = {
+        asyncio.create_task(_local_searxng(query, max_results)): "local",
+        asyncio.create_task(_public_searxng(query, max_results)): "public",
+        asyncio.create_task(_ddg_full_search(query, max_results)): "ddg",
+    }
+    if os.environ.get("BRAVE_API_KEY", "").strip():
+        tasks[asyncio.create_task(_brave_search(query, max_results))] = "brave"
+
+    results: List[Dict[str, str]] = []
+    for coro in asyncio.as_completed(tasks):
+        try:
+            r = await coro
+        except Exception:
+            continue
+        if r:
+            results = r
+            break
+
+    for t in tasks:
+        if not t.done():
+            t.cancel()
     if results:
         return results
 
-    # 2. Public SearXNG — concurrent race, first success wins (no setup needed)
-    results = await _public_searxng(query, max_results)
-    if results:
-        return results
-
-    # 3. Brave Search (if BRAVE_API_KEY set — 2000 free/month)
-    results = await _brave_search(query, max_results)
-    if results:
-        return results
-
-    # 4. DDG full web search
-    results = await _ddg_full_search(query, max_results)
-    if results:
-        return results
-
-    # 5. Wikipedia + DDG instant (final fallback)
+    # Final fallback — Wikipedia + DDG instant answer
     wiki_task = asyncio.create_task(_wikipedia_search(query, max_results))
     ddg_task  = asyncio.create_task(_ddg_instant(query, max_results))
     wiki_res, ddg_res = await asyncio.gather(wiki_task, ddg_task)

@@ -30,7 +30,7 @@ class BrowserTaskRequest(BaseModel):
 @router.get("/status")
 async def browser_status():
     """Check browser readiness. Auto-installs on first task run — no manual steps needed."""
-    from app.services.browser_controller import _chromium_installed
+    from app.services.browser_controller import _chromium_installed, DEFAULT_SESSION_PATH
 
     try:
         import playwright  # noqa
@@ -47,7 +47,18 @@ async def browser_status():
         "auto_install": True,
         "note": "Chromium auto-downloads on first use (~150MB, one-time)." if not chromium_ready else "Browser ready.",
         "headless_mode": __import__("os").getenv("BROWSER_HEADLESS", "true"),
+        "has_saved_session": DEFAULT_SESSION_PATH.exists(),
     }
+
+
+@router.delete("/session")
+async def clear_browser_session():
+    """Delete the saved login session (cookies/localStorage). Next task runs logged-out."""
+    from app.services.browser_controller import DEFAULT_SESSION_PATH
+    if DEFAULT_SESSION_PATH.exists():
+        DEFAULT_SESSION_PATH.unlink()
+        return {"status": "cleared"}
+    return {"status": "no_session"}
 
 
 @router.get("/stream")

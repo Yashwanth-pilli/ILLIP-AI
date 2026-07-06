@@ -151,35 +151,63 @@ class OllamaProvider(BaseProvider):
             "stream": True,
             "options": opts,
         }
+        import asyncio as _asyncio
         try:
             async with aiohttp.ClientSession() as session:
-                async with session.post(
-                    f"{self.base_url}/api/chat",
-                    json=payload,
-                    timeout=aiohttp.ClientTimeout(total=self.timeout),
-                ) as resp:
-                    if resp.status != 200:
-                        yield f"[Error {resp.status} from Ollama]"
+                for attempt in range(2):  # transient VRAM-swap / stale-warmed-ctx 400s: one retry
+                    async with session.post(
+                        f"{self.base_url}/api/chat",
+                        json=payload,
+                        timeout=aiohttp.ClientTimeout(total=self.timeout),
+                    ) as resp:
+                        if resp.status != 200:
+                            error_text = await resp.text()
+                            logger.error(f"Ollama stream error {resp.status} (attempt {attempt + 1}/2): {error_text}")
+                            if attempt == 0:
+                                if "exceed" in error_text.lower() and "context" in error_text.lower():
+                                    # The cached "warmed" ctx was too small for this prompt (e.g. a
+                                    # stray raw call previously loaded the model with Ollama's 2048
+                                    # default). Drop the stale cache entry and force a fresh load
+                                    # sized for the actual conversation instead of blind-retrying
+                                    # the same too-small payload.
+                                    logger.warning(
+                                        f"Ollama: warmed ctx too small for {chosen_model} — forcing reload with larger ctx"
+                                    )
+                                    ghost_opts = await self._get_ghost_options(chosen_model, max(num_ctx, 8192))
+                                    opts = {
+                                        "temperature": temperature,
+                                        "keep_alive": KEEP_ALIVE_SECONDS,
+                                        **ghost_opts,
+                                    }
+                                    payload["options"] = opts
+                                    effective_ctx = opts.get("num_ctx", num_ctx)
+                                    is_warmed = False
+                                else:
+                                    await _asyncio.sleep(1.5)
+                                continue
+                            yield f"[Error {resp.status} from Ollama: {error_text[:200]}]"
+                            return
+
+                        first_token = True
+                        import json
+                        async for line in resp.content:
+                            line = line.strip()
+                            if not line:
+                                continue
+                            try:
+                                data = json.loads(line)
+                                token = data.get("message", {}).get("content", "")
+                                if token:
+                                    if first_token and not is_warmed:
+                                        # Model loaded successfully — register in warmed dict
+                                        mark_warmed(chosen_model, effective_ctx)
+                                        first_token = False
+                                    yield token
+                                if data.get("done"):
+                                    return
+                            except Exception:
+                                continue
                         return
-                    first_token = True
-                    import json
-                    async for line in resp.content:
-                        line = line.strip()
-                        if not line:
-                            continue
-                        try:
-                            data = json.loads(line)
-                            token = data.get("message", {}).get("content", "")
-                            if token:
-                                if first_token and not is_warmed:
-                                    # Model loaded successfully — register in warmed dict
-                                    mark_warmed(chosen_model, effective_ctx)
-                                    first_token = False
-                                yield token
-                            if data.get("done"):
-                                return
-                        except Exception:
-                            continue
         except aiohttp.ClientConnectorError:
             yield "[Error: Cannot connect to Ollama — run: ollama serve]"
         except Exception as e:
@@ -208,28 +236,44 @@ class OllamaProvider(BaseProvider):
         }
         try:
             async with aiohttp.ClientSession() as session:
-                async with session.post(
-                    f"{self.base_url}/api/chat",
-                    json=payload,
-                    timeout=aiohttp.ClientTimeout(total=self.timeout),
-                ) as response:
-                    if response.status != 200:
+                data = None
+                for attempt in range(2):
+                    async with session.post(
+                        f"{self.base_url}/api/chat",
+                        json=payload,
+                        timeout=aiohttp.ClientTimeout(total=self.timeout),
+                    ) as response:
+                        if response.status == 200:
+                            data = await response.json()
+                            break
                         error_text = await response.text()
-                        logger.error(f"Ollama tool-call error {response.status}: {error_text}")
+                        logger.error(f"Ollama tool-call error {response.status} (attempt {attempt + 1}/2): {error_text}")
+                        # Same stale-warmed-ctx self-heal as stream_response: the
+                        # tool-call prompt (system + tool specs + memory) is often
+                        # bigger than the model's warmed ctx. Bump ctx and retry once.
+                        if attempt == 0 and "exceed" in error_text.lower() and "context" in error_text.lower():
+                            import re as _re
+                            m = _re.search(r'(\d+)\s*tokens?\)', error_text)
+                            needed = int(m.group(1)) if m else num_ctx * 2
+                            new_ctx = min(16384, max(num_ctx, needed) + 1024)
+                            payload["options"]["num_ctx"] = new_ctx
+                            logger.warning(f"Ollama tool-call: bumping ctx to {new_ctx} and retrying")
+                            continue
                         return "", []
-                    data = await response.json()
-                    msg = data.get("message", {})
-                    content = msg.get("content", "").strip()
-                    raw_calls = msg.get("tool_calls", [])
-                    tool_calls = [
-                        {
-                            "name": c["function"]["name"],
-                            "arguments": c["function"].get("arguments", {}),
-                        }
-                        for c in raw_calls
-                        if "function" in c
-                    ]
-                    return content, tool_calls
+                if data is None:
+                    return "", []
+                msg = data.get("message", {})
+                content = msg.get("content", "").strip()
+                raw_calls = msg.get("tool_calls", [])
+                tool_calls = [
+                    {
+                        "name": c["function"]["name"],
+                        "arguments": c["function"].get("arguments", {}),
+                    }
+                    for c in raw_calls
+                    if "function" in c
+                ]
+                return content, tool_calls
         except aiohttp.ClientConnectorError:
             return "", []
         except Exception as e:
