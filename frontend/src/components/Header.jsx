@@ -12,6 +12,19 @@ function SafetyBadge({ hwLive }) {
     critical: { cls: 'hot',     dot: '🔴', label: 'Cooling' },
   }
   const s = map[pressure] || map.low
+  const ramPct = hwLive.ram_percent || 0
+  // RAM starvation is the #1 "why is ILLIP suddenly slow" cause — when other
+  // apps eat RAM, Windows swaps and token generation crawls. Say it plainly.
+  if (ramPct >= 90) {
+    return (
+      <span
+        className="safety-badge warm"
+        title={`Your PC's RAM is ${ramPct.toFixed(0)}% full — other apps (browser tabs, etc.) are squeezing ILLIP, so replies get slow. Close some apps to speed it up. GPU is fine: ${temp.toFixed(0)}°C.`}
+      >
+        🟡 RAM {ramPct.toFixed(0)}% · close apps
+      </span>
+    )
+  }
   const title = temp > 0
     ? `GPU ${temp.toFixed(0)}°C · limit 85°C · ${s.label}. ILLIP auto-throttles before it ever gets hot.`
     : `${s.label} · running on CPU`
