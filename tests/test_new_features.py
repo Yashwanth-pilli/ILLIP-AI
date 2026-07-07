@@ -35,7 +35,7 @@ async def test_move_real_and_verifies(tmp_path):
 @pytest.mark.asyncio
 async def test_move_refuses_system_path(tmp_path):
     from app.skills.builtin.file_ops_skill import MoveFileSkill
-    sysroot = os.environ.get("SystemRoot", r"C:\Windows")
+    sysroot = os.environ.get("SystemRoot", r"C:\Windows") if os.name == "nt" else "/etc"
     r = await MoveFileSkill().execute(source=sysroot, destination=str(tmp_path), confirm=True)
     assert "REFUSED" in r
 

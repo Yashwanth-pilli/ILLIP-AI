@@ -24,13 +24,18 @@ from app.skills.base_skill import BaseSKill
 from app.utils import logger
 
 # Locations we never read from or write to — breaking these breaks the PC.
+# POSIX roots matter too: Docker deploys run this on Linux.
+_POSIX_FORBIDDEN = ("/etc", "/usr", "/bin", "/sbin", "/lib", "/boot", "/var", "/root", "/proc", "/sys", "/dev")
+
+
 def _forbidden_roots() -> list[Path]:
     roots = []
-    for env, sub in (("SystemRoot", None), ("ProgramFiles", None),
-                     ("ProgramFiles(x86)", None), ("ProgramData", None)):
+    for env in ("SystemRoot", "ProgramFiles", "ProgramFiles(x86)", "ProgramData"):
         v = os.environ.get(env)
         if v:
             roots.append(Path(v))
+    if os.name != "nt":
+        roots.extend(Path(p) for p in _POSIX_FORBIDDEN)
     # The ILLIP install itself — agents must not move their own code away.
     roots.append(Path(__file__).resolve().parents[3])
     return roots
