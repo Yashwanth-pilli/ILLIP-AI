@@ -27,9 +27,11 @@ def _load_system_prompt() -> str:
         base = "You are ILLIP, a local-first AI assistant."
     from datetime import datetime
     now = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-    # User-toggled reply-style modes (/caveman, /ponytail) append here.
+    # Fable-style work method (editable via data/methodology.md), then
+    # user-toggled reply-style modes (/caveman, /ponytail).
+    from app.services.methodology import chat_method
     from app.services.chat_modes import prompt_addendum
-    return f"Current date and time: {now}\n\n{base}{prompt_addendum()}"
+    return f"Current date and time: {now}\n\n{base}{chat_method()}{prompt_addendum()}"
 
 
 class ChatService:

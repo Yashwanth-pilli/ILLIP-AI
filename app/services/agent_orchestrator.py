@@ -275,7 +275,8 @@ async def run_task_stream(task: str, dest: str = "", out_dir: Path | None = None
             agent = registry.get_agent(agent_type)
         yield {"type": "step_start", "agent": agent_type, "idx": i, "total": len(steps),
                "task": step["task"]}
-        step_task = step["task"]
+        from app.services.methodology import agent_method
+        step_task = f"{agent_method()}\n\nTask: {step['task']}"
         # Nudge code-producing agents to emit COMPLETE, named files we can save.
         if agent_type in ("code", "builder", "design", "tester"):
             step_task += (

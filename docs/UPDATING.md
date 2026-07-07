@@ -44,6 +44,7 @@ they live in `data/`, which updates never touch.
 | Which models the store offers | `data/model_catalog.json` | Copy the shape from `app/services/model_catalog.py` `DEFAULT_CATALOG`, adjust names/sizes. Your file fully replaces the built-in list |
 | ILLIP's personality | chat: clear memory in the 🧿 Memory panel, then talk to it how you want it to be | Old chats teach it — clearing resets the persona |
 | Default AI model | header dropdown, or `OLLAMA_MODEL=` in `.env` | — |
+| How ILLIP thinks (work method) | `data/methodology.md` | Your text replaces the built-in Fable-style method (understand → root cause → simplest fix → verify). Empty file disables it |
 
 ---
 
