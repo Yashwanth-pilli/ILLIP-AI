@@ -58,7 +58,16 @@ export default function Header({
             title={isLoading ? 'ILLIP is thinking...' : 'Click to see the ILLIP emblem'}
             onClick={() => setLogoBig(true)}
           >
-            <img className="cat-logo" src="/illip-logo.png" alt="ILLIP" />
+            {/* Animated emblem; poster = instant paint before the video loads */}
+            <video
+              className="cat-logo"
+              src="/illip-logo.mp4"
+              poster="/illip-logo.png"
+              autoPlay
+              loop
+              muted
+              playsInline
+            />
           </div>
           <div className="brand">
             <span className="brand-name">ILLIP</span>
@@ -135,9 +144,13 @@ export default function Header({
 
       {logoBig && (
         <div className="modal-overlay" onClick={() => setLogoBig(false)} title="Click to close">
-          <img
-            src="/illip-logo.png"
-            alt="ILLIP emblem"
+          <video
+            src="/illip-logo.mp4"
+            poster="/illip-logo.png"
+            autoPlay
+            loop
+            muted
+            playsInline
             style={{
               maxWidth: 'min(80vw, 560px)', maxHeight: '80vh', borderRadius: '16px',
               boxShadow: '0 0 80px rgba(232,199,102,0.35)', cursor: 'pointer',

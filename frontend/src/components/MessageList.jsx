@@ -133,7 +133,8 @@ export default function MessageList({ messages, onFeedback, onSpeak, onRegenerat
     <div className="messages" ref={containerRef}>
       {messages.length === 0 && (
         <div style={{textAlign:'center',color:'#7070a0',marginTop:'60px',fontSize:'14px'}}>
-          <img src="/illip-logo.png" alt="ILLIP" style={{width:'64px',height:'64px',borderRadius:'50%',marginBottom:'12px',objectFit:'cover'}} />
+          <video src="/illip-logo.mp4" poster="/illip-logo.png" autoPlay loop muted playsInline
+            style={{width:'96px',height:'96px',borderRadius:'50%',marginBottom:'12px',objectFit:'cover'}} />
           <div>ILLIP — Local · Private · Yours</div>
           <div style={{fontSize:'12px',marginTop:'6px',color:'#4a4a6a'}}>Ask anything. Your data never leaves your device.</div>
           <div style={{fontSize:'11px',marginTop:'10px',color:'#4a4a6a'}}>Tip: <code>/idea &lt;your idea&gt;</code> · <code>/stuck</code> · <code>/opps</code> · <code>/scan &lt;file&gt;</code> · <code>/task &lt;goal&gt;</code> · <code>/doctor</code></div>
