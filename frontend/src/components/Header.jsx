@@ -1,4 +1,4 @@
-import React from 'react'
+import React, { useState } from 'react'
 
 function SafetyBadge({ hwLive }) {
   if (!hwLive || hwLive.gpu_temp_c == null) return null
@@ -44,6 +44,7 @@ export default function Header({
 }) {
   const pressure = hwLive?.pressure || 'low'
   const catClass = `cat-wrap pressure-${pressure}${isLoading ? ' thinking' : ''}`
+  const [logoBig, setLogoBig] = useState(false)
   const suggestion = !dismissedSuggestion && modelsData?.recommended && modelsData?.active &&
     modelsData.recommended.split(':')[0] !== modelsData.active.split(':')[0]
       ? modelsData : null
@@ -52,7 +53,11 @@ export default function Header({
     <>
       <header className="app-header">
         <div className="logo-area">
-          <div className={catClass} title={isLoading ? 'ILLIP is thinking...' : undefined}>
+          <div
+            className={catClass}
+            title={isLoading ? 'ILLIP is thinking...' : 'Click to see the ILLIP emblem'}
+            onClick={() => setLogoBig(true)}
+          >
             <img className="cat-logo" src="/illip-logo.png" alt="ILLIP" />
           </div>
           <div className="brand">
@@ -127,6 +132,19 @@ export default function Header({
           </div>
         </div>
       </header>
+
+      {logoBig && (
+        <div className="modal-overlay" onClick={() => setLogoBig(false)} title="Click to close">
+          <img
+            src="/illip-logo.png"
+            alt="ILLIP emblem"
+            style={{
+              maxWidth: 'min(80vw, 560px)', maxHeight: '80vh', borderRadius: '16px',
+              boxShadow: '0 0 80px rgba(232,199,102,0.35)', cursor: 'pointer',
+            }}
+          />
+        </div>
+      )}
 
       {suggestion && (
         <div className="model-suggestion">

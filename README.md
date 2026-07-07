@@ -1,4 +1,4 @@
-<p align="center"><img src="assets/illip-logo.png" alt="ILLIP" width="180" /></p>
+<p align="center"><a href="assets/illip-logo.png"><img src="assets/illip-logo.png" alt="ILLIP" width="180" /></a></p>
 
 # ILLIP AI — v3.1
 
