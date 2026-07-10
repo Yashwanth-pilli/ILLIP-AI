@@ -104,11 +104,14 @@ def detect_hardware() -> HardwareInfo:
     # Tier 3: Good GPU (4-8GB VRAM) or lots of RAM (32GB+)
     # Tier 2: Mid (16GB RAM or 2-4GB GPU)
     # Tier 1: Low-end
+    # +1GB RAM tolerance (same as model_catalog.fit_verdict): a nominal 16GB
+    # machine reports ~15.3GB usable and must not drop a tier for it.
+    ram = info.ram_gb + 1
     if vram_gb >= 8:
         info.tier = 4
-    elif vram_gb >= 4 or info.ram_gb >= 32:
+    elif vram_gb >= 4 or ram >= 32:
         info.tier = 3
-    elif info.ram_gb >= 16:
+    elif ram >= 16:
         info.tier = 2
     else:
         info.tier = 1

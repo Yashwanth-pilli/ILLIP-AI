@@ -82,7 +82,7 @@ async def pre_warm(model: str, base_url: str = "http://localhost:11434", num_ctx
                     logger.warning(f"SpeedOptimizer: pre-warm failed status={resp.status}")
                 return ok
     except Exception as e:
-        logger.warning(f"SpeedOptimizer: pre-warm error: {e}")
+        logger.warning(f"SpeedOptimizer: pre-warm error: {e!r}")
         return False
 
 
