@@ -31,14 +31,24 @@ def _is_ollama(p) -> bool:
         return False
 
 
+def _is_omniroute(p) -> bool:
+    try:
+        cmd = " ".join(p.info.get("cmdline") or []).lower()
+        return "omniroute" in cmd
+    except Exception:
+        return False
+
+
 def _scan():
-    illip, ollama = [], []
+    illip, ollama, omni = [], [], []
     for p in psutil.process_iter(attrs=["name", "cmdline"]):
         if _is_illip(p):
             illip.append(p)
         elif _is_ollama(p):
             ollama.append(p)
-    return illip, ollama
+        elif _is_omniroute(p):
+            omni.append(p)
+    return illip, ollama, omni
 
 
 def _kill(procs) -> int:
@@ -78,8 +88,8 @@ $toast=[Windows.UI.Notifications.ToastNotification]::new($t)
 
 
 def main():
-    illip, ollama = _scan()
-    if not illip and not ollama:
+    illip, ollama, omni = _scan()
+    if not illip and not ollama and not omni:
         msg = "Nothing was running. All clear."
         print(msg)
         _toast("ILLIP — already stopped", msg)
@@ -87,21 +97,24 @@ def main():
 
     n_illip = _kill(illip)
     n_ollama = _kill(ollama)
+    n_omni = _kill(omni)
 
     # Re-scan to confirm nothing survived.
-    left_illip, left_ollama = _scan()
+    left_illip, left_ollama, left_omni = _scan()
     parts = []
     if n_illip:
         parts.append(f"ILLIP server x{n_illip}")
     if n_ollama:
         parts.append(f"Ollama x{n_ollama}")
+    if n_omni:
+        parts.append(f"OmniRoute x{n_omni}")
     closed = ", ".join(parts) if parts else "nothing"
 
-    survivors = len(left_illip) + len(left_ollama)
+    survivors = len(left_illip) + len(left_ollama) + len(left_omni)
     if survivors:
         msg = f"Closed {closed}. WARNING: {survivors} still running — reboot to be sure."
         print(msg)
-        for p in left_illip + left_ollama:
+        for p in left_illip + left_ollama + left_omni:
             try:
                 print(f"  still alive: pid {p.pid} {(p.info.get('name') or '')}")
             except Exception:

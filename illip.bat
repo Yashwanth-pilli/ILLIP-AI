@@ -60,6 +60,18 @@ if errorlevel 1 (
     echo Ollama already running.
 )
 
+REM Start OmniRoute (free cloud-model proxy) so /cloud mode works. Only if it's
+REM installed; skipped silently otherwise. Runs in its own minimized window.
+netstat -ano | findstr ":20128 " | findstr LISTENING >nul 2>&1
+if errorlevel 1 (
+    if exist "%APPDATA%\npm\omniroute.cmd" (
+        echo Starting OmniRoute...
+        start "OmniRoute" /min "%APPDATA%\npm\omniroute.cmd"
+    )
+) else (
+    echo OmniRoute already running.
+)
+
 netstat -ano | findstr ":8000 " | findstr LISTENING >nul 2>&1
 if errorlevel 1 (
     echo Starting ILLIP...
