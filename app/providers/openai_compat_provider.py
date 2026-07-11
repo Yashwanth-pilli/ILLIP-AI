@@ -40,7 +40,12 @@ class OpenAICompatProvider(BaseProvider):
 
     def __init__(self, base_url: str):
         super().__init__("openai_compat")
-        self.base_url = base_url.rstrip("/")
+        # _chat_url()/_models_url() append "/v1/...", so the base must NOT end in
+        # /v1. Strip it if the user included it (OmniRoute's docs show .../v1).
+        base = base_url.rstrip("/")
+        if base.endswith("/v1"):
+            base = base[:-3].rstrip("/")
+        self.base_url = base
         _, self.api_key, self.model = _cfg()
         self.timeout = 120
 
@@ -108,6 +113,7 @@ class OpenAICompatProvider(BaseProvider):
             "messages": self._to_messages(messages),
             "temperature": temperature,
             "max_tokens": max_tokens or 2048,
+            "stream": False,
         }
         try:
             async with aiohttp.ClientSession() as s:
@@ -119,10 +125,36 @@ class OpenAICompatProvider(BaseProvider):
                 ) as r:
                     if r.status != 200:
                         return f"OpenAI-compat error {r.status}: {await r.text()}"
-                    d = await r.json()
+                    # Some gateways (e.g. OmniRoute) reply with an SSE stream even
+                    # for stream:false — aggregate the deltas. Otherwise plain JSON.
+                    ctype = r.headers.get("Content-Type", "")
+                    if "text/event-stream" in ctype:
+                        return self._aggregate_sse(await r.text())
+                    d = await r.json(content_type=None)
                     return d["choices"][0]["message"]["content"].strip()
         except Exception as e:
             return f"OpenAI-compat error: {e}"
+
+    @staticmethod
+    def _aggregate_sse(text: str) -> str:
+        """Join the content deltas from an OpenAI-style SSE response into one string."""
+        out = []
+        for line in text.splitlines():
+            line = line.strip()
+            if not line.startswith("data: "):
+                continue
+            data = line[6:]
+            if data == "[DONE]":
+                break
+            try:
+                choice = json.loads(data)["choices"][0]
+                tok = (choice.get("delta", {}) or {}).get("content") \
+                    or (choice.get("message", {}) or {}).get("content") or ""
+                if tok:
+                    out.append(tok)
+            except Exception:
+                continue
+        return "".join(out).strip()
 
     async def stream_response(
         self,

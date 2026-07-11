@@ -39,3 +39,24 @@ def test_clear_reverts_to_local():
     set_cloud_override()
     clear_cloud_override()
     assert cloud_override_active() is False
+
+
+def test_base_url_strips_trailing_v1():
+    from app.providers.openai_compat_provider import OpenAICompatProvider
+    # user includes /v1 (as OmniRoute docs show) — must not double up
+    p = OpenAICompatProvider("http://localhost:20128/v1")
+    assert p.base_url == "http://localhost:20128"
+    assert p._chat_url() == "http://localhost:20128/v1/chat/completions"
+    # and it still works without /v1
+    p2 = OpenAICompatProvider("http://localhost:20128")
+    assert p2._chat_url() == "http://localhost:20128/v1/chat/completions"
+
+
+def test_aggregate_sse_joins_deltas():
+    from app.providers.openai_compat_provider import OpenAICompatProvider
+    sse = (
+        'data: {"choices":[{"delta":{"content":"Hello"}}]}\n'
+        'data: {"choices":[{"delta":{"content":" world"}}]}\n'
+        'data: [DONE]\n'
+    )
+    assert OpenAICompatProvider._aggregate_sse(sse) == "Hello world"
