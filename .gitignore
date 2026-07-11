@@ -71,6 +71,8 @@ data/workspaces/*
 !data/workspaces/.gitkeep
 data/snapshots/*
 !data/snapshots/.gitkeep
+data/governance/*
+!data/governance/.gitkeep
 data/projects/
 data/plugins/
 data/learning/
