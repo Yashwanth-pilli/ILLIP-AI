@@ -1540,3 +1540,22 @@ body::after {
   padding: 5px 10px; border-radius: 999px;
   pointer-events: none; letter-spacing: .3px;
 }
+
+/* v2 nav — text menu, wider rail, no emoji. Simple + neat. */
+:root { --nav-w: 184px; }
+.nav-rail { padding: 12px 10px; gap: 6px; }
+.nav-btn {
+  width: 100%; height: auto;
+  padding: 10px 14px;
+  justify-content: flex-start;
+  font-size: 13.5px; font-weight: 600;
+  letter-spacing: .2px;
+  text-align: left;
+}
+.nav-btn:hover { transform: none; color: var(--accent-2); }
+.nav-btn.active {
+  background: var(--accent-soft);
+  border-color: var(--accent);
+  color: var(--accent-2);
+  box-shadow: none;
+}
