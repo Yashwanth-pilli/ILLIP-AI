@@ -65,6 +65,85 @@ _LOGO = r"""
 """
 
 
+def _login_gate() -> bool:
+    """If a local password is set (same one the browser uses), require it before
+    the terminal agent opens. Keeps browser + terminal at parity."""
+    from app.services import auth_local
+    if not auth_local.is_enabled():
+        return True
+    import getpass
+    for _ in range(3):
+        try:
+            pw = getpass.getpass("  ILLIP is locked — password: ")
+        except (EOFError, KeyboardInterrupt):
+            return False
+        if auth_local.login(pw):
+            _p("  unlocked.\n")
+            return True
+        _p("  wrong password.")
+    _p("  too many tries. bye.")
+    return False
+
+
+async def _slash(user: str) -> bool:
+    """Handle /ask, /read, /skills in the terminal — same features as the web UI.
+    Returns True if it handled the input."""
+    parts = user.split(maxsplit=1)
+    cmd = parts[0].lower()
+    arg = parts[1].strip() if len(parts) > 1 else ""
+
+    if cmd == "/ask":
+        if not arg:
+            _p("  usage: /ask <question>")
+            return True
+        _p("  [searching the web + reading pages...]")
+        from app.agents.research_agent import get_research_agent
+        answer, sources = "", []
+        try:
+            async for step in get_research_agent().research(arg, depth="quick"):
+                if step.type == "done":
+                    answer = step.data.get("answer", "")
+                    sources = step.data.get("sources", [])
+                elif step.type == "error":
+                    _p(f"  [error] {step.message}")
+                    return True
+        except Exception as e:
+            _p(f"  [error] {e}")
+            return True
+        _p("illip > " + (answer or "(no answer)"))
+        if sources:
+            _p("\n  sources:")
+            for i, s in enumerate(sources, 1):
+                _p(f"   {i}. {(s.get('title') or s.get('url'))[:70]} - {s.get('url')}")
+        _p("")
+        return True
+
+    if cmd == "/read":
+        if not arg:
+            _p("  usage: /read <url>")
+            return True
+        from app.services.readers import smart_read
+        d = await smart_read(arg)
+        if d.get("error") and not d.get("text"):
+            _p(f"  [couldn't read] {d['error']}")
+            return True
+        _p(f"illip > [{d.get('source')}] {d.get('title') or d.get('url')}\n")
+        _p((d.get("text") or "")[:4000])
+        _p("")
+        return True
+
+    if cmd == "/skills":
+        from app.services.skills_catalog import directory
+        dr = directory(category=arg)
+        _p(f"illip > agent skills ({dr['count']}/{dr['total']}) — categories: {', '.join(dr['categories'])}")
+        for s in dr["skills"]:
+            _p(f"   - {s['id']} [{s['category']}] — {s['description']}")
+        _p(f"  filter: /skills <category>   source: {dr['source']}\n")
+        return True
+
+    return False
+
+
 def _banner(launch_dir) -> None:
     """Big clear ILLIP cat + logo, then the working area below."""
     import os
@@ -74,7 +153,7 @@ def _banner(launch_dir) -> None:
     _p(DIM + "  your AI company — right here in your terminal" + R)
     _p(DIM + "  " + "-" * 52 + R)
     _p(f"  working in : {launch_dir}")
-    _p(DIM + "  commands   : /exit   /clear   /reset" + R)
+    _p(DIM + "  commands   : /ask <q>  /read <url>  /skills [cat]  /clear  /exit" + R)
     _p("")
 
 
@@ -86,6 +165,10 @@ async def _run(resume: bool) -> None:
         sys.stdout.reconfigure(encoding="utf-8", errors="replace")
     except Exception:
         pass
+
+    # Same login as the browser — if a password is set, gate the terminal too.
+    if not _login_gate():
+        return
 
     from app.providers import get_provider
     from app.skills.registry import get_registry
@@ -134,6 +217,10 @@ async def _run(resume: bool) -> None:
             _save_session(history)
             _p("[conversation cleared]\n")
             continue
+        # Web-UI parity commands: /ask, /read, /skills (not saved to chat history)
+        if low.startswith(("/ask", "/read", "/skills")):
+            if await _slash(user):
+                continue
 
         messages.append(Message(role="user", content=user, timestamp=get_current_timestamp()))
         history.append({"role": "user", "content": user})
