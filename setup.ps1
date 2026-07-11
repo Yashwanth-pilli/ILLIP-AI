@@ -5,7 +5,11 @@
 #   3. Finds or installs Ollama (asks permission first)
 #   4. Looks at your hardware (GPU VRAM / RAM) and picks the right model
 #   5. Downloads the model (asks permission first - it is gigabytes)
+#   5a. Optional: browser engine (Playwright) for the web agent
+#   5c. Optional: free cloud brain (OmniRoute) - starts it, sets your password,
+#       opens the dashboard, and takes your API key to wire up /cloud
 #   6. Puts a small cat on your desktop - click the cat to start ILLIP
+# Every optional download is explained and asked first, so you decide.
 # Anything it cannot do automatically, it explains step by step.
 
 $ErrorActionPreference = "Continue"
@@ -200,32 +204,80 @@ if ($envIsNew) {
     Ok ".env set to use $model."
 }
 
-# -- 5b. Optional cloud brain (OmniRoute) — free big models, zero local strain --
-# Powers /cloud mode. Fully optional: ILLIP runs 100% local without it. Needs
-# Node.js. The provider-connect + API-key step is one-time in OmniRoute's own
-# dashboard (user logins — can't be scripted).
-Step "Optional: cloud brain (OmniRoute) for /cloud mode..."
+# -- 5a. Optional browser engine (Playwright) ---------------------------------
+# Each optional step below explains what it does and asks before downloading, so
+# the user decides. All are non-fatal: ILLIP runs fully local without any of them.
+Step "Optional: browser engine for ILLIP's web agent..."
+Say "  What it does: powers the Browser tool + live page reading (research," Gray
+Say "  'read this URL', screenshots). About 150 MB, one time." Gray
+Say "  Skip it if you only want to chat - everything else still works." Gray
+if (Ask "Download the browser engine (Playwright Chromium) now?") {
+    & $venvPython -m playwright install chromium
+    if ($LASTEXITCODE -eq 0) { Ok "Browser engine installed." }
+    else { Warn "Browser engine had trouble - run later: .venv\Scripts\playwright install chromium" }
+}
+
+# -- 5c. Optional free cloud brain (OmniRoute) --------------------------------
+Step "Optional: free cloud brain (OmniRoute) for /cloud mode..."
+Say "  What it does: runs BIG models in the cloud for FREE (~1.6B tokens/month)" Gray
+Say "  so heavy questions do not strain your laptop. Your local model stays the" Gray
+Say "  private default - /cloud only sends a request out when you turn it on." Gray
 $node = Has-Command "node"
 if (-not $node) {
-    if ((Has-Command "winget") -and (Ask "Install Node.js? Only needed for the free /cloud brain; say no to stay fully local.")) {
+    if ((Has-Command "winget") -and (Ask "Install Node.js? It is required for the free /cloud brain. Say no to stay fully local.")) {
         winget install --id OpenJS.NodeJS.LTS -e --accept-source-agreements --accept-package-agreements
+        Refresh-Path
         $node = Has-Command "node"
     }
 }
 if ($node) {
-    $omniCmd = Join-Path $env:APPDATA "npm\omniroute.cmd"
-    if (Test-Path $omniCmd) {
-        Ok "OmniRoute already installed - it auto-starts with 'illip'."
-    } elseif (Ask "Install OmniRoute now? Free cloud-model proxy, ~1.6B free tokens/month, one time.") {
-        Step "Installing OmniRoute - large package, a few minutes..."
-        & npm install -g omniroute --no-fund --no-audit
-        if (Test-Path $omniCmd) {
-            Ok "OmniRoute installed. It auto-starts with 'illip'."
-            Say "  One-time: after starting 'illip', open http://localhost:20128," Gray
-            Say "  connect a free provider + generate a key, add it to .env as" Gray
-            Say "  OPENAI_COMPAT_API_KEY, then use /cloud on in chat." Gray
+    $omniCmd   = Join-Path $env:APPDATA "npm\omniroute.cmd"
+    $omniReset = Join-Path $env:APPDATA "npm\omniroute-reset-password.cmd"
+    if (-not (Test-Path $omniCmd)) {
+        if (Ask "Install OmniRoute now? Free cloud-model proxy, one time, a few minutes.") {
+            Step "Installing OmniRoute..."
+            & npm install -g omniroute --no-fund --no-audit
+        }
+    } else { Ok "OmniRoute already installed." }
+
+    if ((Test-Path $omniCmd) -and (Ask "Set up /cloud now? I will start OmniRoute, set your password, and open its dashboard so you can make a free API key.")) {
+        Step "Starting OmniRoute..."
+        Start-Process -FilePath $omniCmd -WindowStyle Minimized
+        $up = $false
+        for ($i = 0; $i -lt 30; $i++) {
+            Start-Sleep -Seconds 2
+            try { Invoke-WebRequest "http://127.0.0.1:20128/v1/models" -TimeoutSec 3 -UseBasicParsing | Out-Null; $up = $true; break } catch {}
+        }
+        if ($up) {
+            Ok "OmniRoute is running."
+            $omniPass = Read-Host "Choose a password for the OmniRoute dashboard (min 8 characters)"
+            if ($omniPass.Length -ge 8 -and (Test-Path $omniReset)) {
+                & $omniReset $omniPass | Out-Null
+                Ok "Password set. Log in with the password you just chose."
+            } else {
+                Warn "Skipped password set (need 8+ chars). The dashboard will let you set one."
+            }
+            Say ""
+            Say "  Opening the OmniRoute dashboard in your browser..." White
+            Start-Process "http://localhost:20128"
+            Say "  In the dashboard:" White
+            Say "    1. Log in with your password" Gray
+            Say "    2. Connect a FREE provider (Kiro, Pollinations - no card needed)" Gray
+            Say "    3. Endpoints -> create an API key -> copy it" Gray
+            Say ""
+            $key = Read-Host "Paste your OmniRoute API key here (or press Enter to skip)"
+            if ($key.Trim().Length -gt 0) {
+                $lines = Get-Content $envPath
+                $lines = $lines -replace '^OPENAI_COMPAT_BASE_URL=.*', 'OPENAI_COMPAT_BASE_URL=http://localhost:20128/v1'
+                $lines = $lines -replace '^OPENAI_COMPAT_API_KEY=.*',  "OPENAI_COMPAT_API_KEY=$($key.Trim())"
+                $lines = $lines -replace '^OPENAI_COMPAT_MODEL=.*',    'OPENAI_COMPAT_MODEL=auto'
+                $lines | Set-Content $envPath
+                Ok "Cloud brain connected. In chat: /cloud on for big cloud models, /cloud off for local."
+            } else {
+                Warn "No key pasted - /cloud stays off. Add it to .env later as OPENAI_COMPAT_API_KEY."
+            }
         } else {
-            Warn "OmniRoute install did not finish - /cloud stays off until installed. ILLIP still works locally."
+            Warn "OmniRoute did not come up in time. It auto-starts with 'illip' - paste your key into .env then."
         }
     }
 } else {
