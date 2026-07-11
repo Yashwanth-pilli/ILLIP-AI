@@ -1559,3 +1559,32 @@ body::after {
   color: var(--accent-2);
   box-shadow: none;
 }
+
+/* v2 login gate — this is the FIRST screen (password wall). Was still teal. */
+.login-gate {
+  background:
+    radial-gradient(1000px 560px at 20% -10%, rgba(139,123,255,.20), transparent 60%),
+    radial-gradient(800px 520px at 110% 10%, rgba(94,215,255,.12), transparent 55%),
+    linear-gradient(180deg, var(--bg), var(--bg2)) !important;
+}
+.login-card {
+  background: rgba(20,22,38,.78) !important;
+  border: 1px solid var(--border2) !important;
+  backdrop-filter: blur(16px) saturate(1.2);
+  box-shadow: 0 20px 60px rgba(139,123,255,.14) !important;
+}
+.login-title { letter-spacing: .5px; }
+.login-input:focus {
+  border-color: var(--accent) !important;
+  box-shadow: 0 0 0 3px var(--accent-soft) !important;
+}
+.login-btn {
+  background: linear-gradient(135deg, var(--accent), var(--accent-2)) !important;
+  color: #12101f !important; font-weight: 700 !important;
+  border: none !important;
+  box-shadow: 0 8px 22px rgba(139,123,255,.35) !important;
+}
+.login-btn:hover:not(:disabled) { filter: brightness(1.08); }
+
+/* drop the build badge — clutter. Keep UI clean. */
+body::after { content: none !important; }
