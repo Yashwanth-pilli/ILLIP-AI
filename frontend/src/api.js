@@ -118,6 +118,7 @@ export const api = {
   // Governance
   govPending: () => fetch(`${BASE}/governance/pending`).then(r => r.json()),
   govApprove: (id) => fetch(`${BASE}/governance/approve/${id}`, { method: 'POST' }),
+  govApproveRun: (id) => fetch(`${BASE}/governance/approve-run/${id}`, { method: 'POST' }).then(r => r.json()),
   govDeny: (id) => fetch(`${BASE}/governance/deny/${id}`, { method: 'POST' }),
 
   // Scheduler

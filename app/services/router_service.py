@@ -27,12 +27,16 @@ from app.utils import logger
 #   LARGE = gpt-oss:20b MoE — deep/on-demand.
 # qwen and ornith can't both stay hot on 8GB, so a chat<->work switch reloads once;
 # worth it because pure small-talk stays instant and real work gets the smart model.
+# Heavy model (gpt-oss:20b) removed from routing — on 8GB VRAM it swaps, spikes
+# CPU and glitches audio. LARGE now falls back to the small brain, so no heavy
+# model ever loads. Re-add "gpt-oss:20b" at the front of _LARGE_FAMILIES to bring
+# it back on stronger hardware.
 _CHAT_FAMILIES  = ["qwen2.5:7b", "qwen2.5:3b", "llama3.2:3b", "mistral:7b"]
 _SMALL_FAMILIES = ["ornith:9b", "qwen2.5:7b", "llama3.1:8b", "mistral:7b"]
-_LARGE_FAMILIES = ["gpt-oss:20b", "ornith:9b", "qwen2.5:7b"]
+_LARGE_FAMILIES = ["ornith:9b", "qwen2.5:7b", "llama3.1:8b"]
 CHAT  = "qwen2.5:7b"
 SMALL = "ornith:9b"
-LARGE = "gpt-oss:20b"
+LARGE = "ornith:9b"
 
 def _detect_models() -> None:
     """Detect installed Ollama models and update CHAT/SMALL/LARGE globals dynamically."""

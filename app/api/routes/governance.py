@@ -42,6 +42,17 @@ async def approve_request(request_id: str):
     return {"ok": True, "request_id": request_id, "status": "approved"}
 
 
+@router.post("/approve-run/{request_id}")
+async def approve_and_run(request_id: str):
+    """Approve a pending high-risk tool call and execute it, returning the result."""
+    mgr = get_governance_manager()
+    if not mgr.approve(request_id):
+        raise HTTPException(status_code=404, detail="Request not found")
+    from app.skills.registry import get_registry
+    result = await get_registry().execute_approved(request_id)
+    return {"ok": True, "request_id": request_id, "result": str(result)}
+
+
 @router.post("/deny/{request_id}")
 async def deny_request(request_id: str):
     mgr = get_governance_manager()

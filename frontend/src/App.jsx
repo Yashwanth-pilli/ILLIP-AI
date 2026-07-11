@@ -463,6 +463,37 @@ export default function App() {
       return
     }
 
+    // Supervised gate: /approve <id>, /deny <id>, /pending
+    if (typeof message === 'string' && message.trim().toLowerCase().startsWith('/approve')) {
+      const id = message.trim().slice('/approve'.length).trim()
+      if (!id) { addMessage('assistant', 'Give the id: `/approve a1b2` (see `/pending`).'); return }
+      addMessage('user', `/approve ${id}`)
+      try {
+        const d = await api.govApproveRun(id)
+        addMessage('assistant', d.ok ? `✅ Approved & ran \`${id}\`.\n\n${d.result || ''}` : `Couldn't approve ${id}.`, { done: true })
+      } catch (e) { addMessage('assistant', `Approve failed: ${e.message}`) }
+      return
+    }
+    if (typeof message === 'string' && message.trim().toLowerCase().startsWith('/deny')) {
+      const id = message.trim().slice('/deny'.length).trim()
+      if (!id) { addMessage('assistant', 'Give the id: `/deny a1b2`.'); return }
+      addMessage('user', `/deny ${id}`)
+      try { await api.govDeny(id); addMessage('assistant', `🚫 Denied \`${id}\`.`, { done: true }) }
+      catch (e) { addMessage('assistant', `Deny failed: ${e.message}`) }
+      return
+    }
+    if (typeof message === 'string' && message.trim().toLowerCase() === '/pending') {
+      addMessage('user', '/pending')
+      try {
+        const d = await api.govPending()
+        const list = d.pending || []
+        if (!list.length) { addMessage('assistant', 'Nothing waiting for approval.', { done: true }); return }
+        const md = list.map(p => `- \`${p.id}\` — **${p.action}**  (\`/approve ${p.id}\` · \`/deny ${p.id}\`)`).join('\n')
+        addMessage('assistant', `**Waiting for your approval:**\n${md}`, { done: true })
+      } catch (e) { addMessage('assistant', `Couldn't load pending: ${e.message}`) }
+      return
+    }
+
     // Slash command: /browser — open the web browser panel. No LLM call.
     if (typeof message === 'string' && ['/browser', '/web'].includes(message.trim().toLowerCase())) {
       setBrowserOpen(true)

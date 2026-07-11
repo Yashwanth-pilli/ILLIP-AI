@@ -85,6 +85,44 @@ class GovernanceManager:
             "request_id": request_id,
         }
 
+    def gate_tool(self, skill: str, args: dict) -> dict:
+        """Gate a high-risk skill call using the 'high_risk_tool' policy.
+        Returns {allowed, level, request_id?}. On REQUIRE_APPROVAL the call is
+        queued with its skill+args so it can be executed on approval."""
+        policy = self.policies.get("high_risk_tool")
+        level = policy.level if policy else PolicyLevel.REQUIRE_APPROVAL
+        action = f"{skill}({', '.join(f'{k}={str(v)[:60]}' for k, v in (args or {}).items())})"
+
+        if level == PolicyLevel.ALLOW:
+            self.log_action("tool", action, "allowed", {"skill": skill})
+            return {"allowed": True, "level": "allow"}
+        if level == PolicyLevel.BLOCK:
+            self.log_action("tool", action, "blocked", {"skill": skill})
+            return {"allowed": False, "level": "block"}
+
+        request_id = str(uuid.uuid4())[:8]
+        self._pending[request_id] = {
+            "id": request_id,
+            "resource_type": "tool",
+            "skill": skill,
+            "args": args or {},
+            "action": action,
+            "status": "pending",
+            "created_at": datetime.now(timezone.utc).isoformat(),
+        }
+        self._save_pending()
+        self.log_action("tool", action, "pending_approval", {"skill": skill})
+        return {"allowed": False, "level": "require_approval", "request_id": request_id}
+
+    def take_approved(self, request_id: str) -> Optional[dict]:
+        """If the request is approved, consume it and return {skill, args}."""
+        p = self._pending.get(request_id)
+        if not p or p.get("status") != "approved":
+            return None
+        del self._pending[request_id]
+        self._save_pending()
+        return {"skill": p.get("skill"), "args": p.get("args", {})}
+
     def approve(self, request_id: str) -> bool:
         if request_id not in self._pending:
             return False
