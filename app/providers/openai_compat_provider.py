@@ -215,6 +215,7 @@ class OpenAICompatProvider(BaseProvider):
             "tool_choice": "auto",
             "temperature": temperature,
             "max_tokens": num_ctx,
+            "stream": False,
         }
         try:
             async with aiohttp.ClientSession() as s:
@@ -225,21 +226,56 @@ class OpenAICompatProvider(BaseProvider):
                     timeout=aiohttp.ClientTimeout(total=self.timeout),
                 ) as resp:
                     if resp.status != 200:
-                        logger.error(f"OpenAI-compat tool-call error {resp.status}")
+                        logger.error(f"OpenAI-compat tool-call error {resp.status}: {await resp.text()}")
                         return "", []
-                    d = await resp.json()
-                    msg = d["choices"][0]["message"]
-                    content = msg.get("content") or ""
-                    raw_calls = msg.get("tool_calls") or []
-                    tool_calls = [
-                        {
-                            "name": c["function"]["name"],
-                            "arguments": json.loads(c["function"].get("arguments", "{}")),
-                        }
-                        for c in raw_calls
-                        if c.get("type") == "function"
-                    ]
+                    # OmniRoute may reply SSE even for stream:false — handle both.
+                    if "text/event-stream" in resp.headers.get("Content-Type", ""):
+                        content, raw_calls = self._aggregate_sse_tools(await resp.text())
+                    else:
+                        msg = (await resp.json(content_type=None))["choices"][0]["message"]
+                        content = msg.get("content") or ""
+                        raw_calls = msg.get("tool_calls") or []
+                    tool_calls = []
+                    for c in raw_calls:
+                        if c.get("type", "function") != "function":
+                            continue
+                        fn = c.get("function", {})
+                        try:
+                            args = json.loads(fn.get("arguments") or "{}")
+                        except Exception:
+                            args = {}
+                        if fn.get("name"):
+                            tool_calls.append({"name": fn["name"], "arguments": args})
                     return content.strip(), tool_calls
         except Exception as e:
             logger.error(f"OpenAI-compat tool-call failed: {e}")
             return "", []
+
+    @staticmethod
+    def _aggregate_sse_tools(text: str) -> tuple[str, list]:
+        """Assemble content + tool_calls from an OpenAI-style SSE tool response."""
+        content_parts: list = []
+        calls: dict = {}  # index -> {id, function:{name, arguments}}
+        for line in text.splitlines():
+            line = line.strip()
+            if not line.startswith("data: "):
+                continue
+            data = line[6:]
+            if data == "[DONE]":
+                break
+            try:
+                choice = json.loads(data)["choices"][0]
+            except Exception:
+                continue
+            delta = choice.get("delta", {}) or choice.get("message", {}) or {}
+            if delta.get("content"):
+                content_parts.append(delta["content"])
+            for tc in (delta.get("tool_calls") or []):
+                idx = tc.get("index", 0)
+                slot = calls.setdefault(idx, {"type": "function", "function": {"name": "", "arguments": ""}})
+                fn = tc.get("function", {})
+                if fn.get("name"):
+                    slot["function"]["name"] = fn["name"]
+                if fn.get("arguments"):
+                    slot["function"]["arguments"] += fn["arguments"]
+        return "".join(content_parts), [calls[k] for k in sorted(calls)]

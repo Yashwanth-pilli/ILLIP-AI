@@ -185,6 +185,13 @@ async def stream_chat_message(request: ChatRequest):
     if hasattr(provider, 'model') and ":" in chosen_model:
         chosen_model = provider.model
 
+    # Cloud mode on → the real brain is OmniRoute, not the local model the router
+    # nominally picked. Reflect that in the badge so it's honest.
+    from app.providers import cloud_override_active
+    if cloud_override_active():
+        chosen_model = provider.model or "auto"
+        routing["model"] = f"cloud: {chosen_model}"
+
     _active_model = chosen_model
 
     do_search = routing["needs_search"] or request.force_search

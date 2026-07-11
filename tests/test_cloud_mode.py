@@ -60,3 +60,18 @@ def test_aggregate_sse_joins_deltas():
         'data: [DONE]\n'
     )
     assert OpenAICompatProvider._aggregate_sse(sse) == "Hello world"
+
+
+def test_aggregate_sse_tools_assembles_call():
+    from app.providers.openai_compat_provider import OpenAICompatProvider
+    # tool_calls arrive split across SSE chunks (name first, args in pieces)
+    sse = (
+        'data: {"choices":[{"delta":{"tool_calls":[{"index":0,"function":{"name":"web_search"}}]}}]}\n'
+        'data: {"choices":[{"delta":{"tool_calls":[{"index":0,"function":{"arguments":"{\\"q\\":"}}]}}]}\n'
+        'data: {"choices":[{"delta":{"tool_calls":[{"index":0,"function":{"arguments":"\\"ai\\"}"}}]}}]}\n'
+        'data: [DONE]\n'
+    )
+    content, calls = OpenAICompatProvider._aggregate_sse_tools(sse)
+    assert len(calls) == 1
+    assert calls[0]["function"]["name"] == "web_search"
+    assert calls[0]["function"]["arguments"] == '{"q":"ai"}'

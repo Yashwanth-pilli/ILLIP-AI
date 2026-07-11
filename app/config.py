@@ -8,6 +8,15 @@ from pathlib import Path
 from pydantic import field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
+# Load .env into os.environ so code that reads os.environ directly (the
+# OpenAI-compat provider, cloud-mode override, etc.) sees it — pydantic only
+# reads .env for its own Settings fields, not the process environment.
+try:
+    from dotenv import load_dotenv
+    load_dotenv(Path(__file__).resolve().parent.parent / ".env")
+except Exception:
+    pass
+
 
 class Settings(BaseSettings):
     # ── Server ────────────────────────────────────────────────────────────────
