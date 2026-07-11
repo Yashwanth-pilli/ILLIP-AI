@@ -463,6 +463,21 @@ export default function App() {
       return
     }
 
+    // Cloud mode: /cloud on|off — route through OmniRoute (free big models, no strain).
+    if (typeof message === 'string' && message.trim().toLowerCase().startsWith('/cloud')) {
+      const arg = message.trim().slice('/cloud'.length).trim().toLowerCase()
+      const on = arg !== 'off'
+      addMessage('user', `/cloud ${on ? 'on' : 'off'}`)
+      try {
+        const d = await api.cloudMode(on)
+        if (on && !d.ok) { addMessage('assistant', `☁️ ${d.reason}`, { done: true }); return }
+        addMessage('assistant', on
+          ? '☁️ **Cloud mode ON.** Your messages now use OmniRoute\'s big cloud models — no strain on your laptop. Note: these prompts leave your PC. Turn off: `/cloud off`.'
+          : '🔒 **Cloud mode OFF.** Back to the local private brain (ornith) — nothing leaves your PC.', { done: true })
+      } catch (e) { addMessage('assistant', `Cloud toggle failed: ${e.message}`) }
+      return
+    }
+
     // Supervised gate: /approve <id>, /deny <id>, /pending
     if (typeof message === 'string' && message.trim().toLowerCase().startsWith('/approve')) {
       const id = message.trim().slice('/approve'.length).trim()

@@ -26,6 +26,35 @@ from app.utils import logger
 _provider: Optional[BaseProvider] = None
 _provider_name: str = ""
 
+# Runtime "cloud mode" override — /cloud on points ILLIP at OmniRoute (an
+# OpenAI-compatible local proxy to free cloud models) for zero local strain.
+# When set, get_provider() returns this instead of the local brain.
+_override: Optional[BaseProvider] = None
+
+
+def set_cloud_override() -> str:
+    """Route subsequent requests through OmniRoute (OpenAI-compat). Returns
+    'ok', or 'not_configured' if OPENAI_COMPAT_BASE_URL isn't set."""
+    global _override
+    base = os.environ.get("OPENAI_COMPAT_BASE_URL", "").strip()
+    if not base:
+        return "not_configured"
+    from app.providers.openai_compat_provider import OpenAICompatProvider
+    _override = OpenAICompatProvider(base)
+    logger.info(f"Cloud mode ON — routing via OmniRoute at {base}")
+    return "ok"
+
+
+def clear_cloud_override() -> None:
+    global _override
+    if _override is not None:
+        logger.info("Cloud mode OFF — back to the local brain")
+    _override = None
+
+
+def cloud_override_active() -> bool:
+    return _override is not None
+
 
 async def _make_provider() -> BaseProvider:
     mode          = (os.environ.get("MODEL_PROVIDER") or settings.model_provider or "auto").lower()
@@ -154,6 +183,10 @@ async def _make_provider() -> BaseProvider:
 async def get_provider() -> BaseProvider:
     """Return active provider. Re-checks if Ollama comes back online in auto mode."""
     global _provider, _provider_name
+
+    # Cloud mode (/cloud on) wins — every request goes through OmniRoute.
+    if _override is not None:
+        return _override
 
     mode = (os.environ.get("MODEL_PROVIDER") or settings.model_provider or "auto").lower()
     if mode == "auto" and _provider_name in ("anthropic", "openrouter", "groq", "openai_compat", "mock"):

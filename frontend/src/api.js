@@ -115,6 +115,11 @@ export const api = {
   }).then(r => r.json()),
   deletePlugin: (name) => fetch(`${BASE}/plugins/${name}`, { method: 'DELETE' }),
 
+  // Cloud mode (OmniRoute)
+  cloudMode: (on) => fetch(`${BASE}/system/cloud-mode`, {
+    method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ on }),
+  }).then(r => r.json()),
+
   // Governance
   govPending: () => fetch(`${BASE}/governance/pending`).then(r => r.json()),
   govApprove: (id) => fetch(`${BASE}/governance/approve/${id}`, { method: 'POST' }),

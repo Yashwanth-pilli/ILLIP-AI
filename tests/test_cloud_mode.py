@@ -1,0 +1,41 @@
+"""Cloud mode: /cloud on routes through OmniRoute (OpenAI-compat) when configured."""
+import os
+import pytest
+
+from app.providers import (
+    set_cloud_override, clear_cloud_override, cloud_override_active, get_provider,
+)
+
+
+@pytest.fixture(autouse=True)
+def _clean():
+    clear_cloud_override()
+    saved = os.environ.get("OPENAI_COMPAT_BASE_URL")
+    yield
+    clear_cloud_override()
+    if saved is None:
+        os.environ.pop("OPENAI_COMPAT_BASE_URL", None)
+    else:
+        os.environ["OPENAI_COMPAT_BASE_URL"] = saved
+
+
+def test_cloud_off_without_config():
+    os.environ.pop("OPENAI_COMPAT_BASE_URL", None)
+    assert set_cloud_override() == "not_configured"
+    assert cloud_override_active() is False
+
+
+@pytest.mark.asyncio
+async def test_cloud_on_switches_provider_when_configured():
+    os.environ["OPENAI_COMPAT_BASE_URL"] = "http://localhost:20128/v1"
+    assert set_cloud_override() == "ok"
+    assert cloud_override_active() is True
+    provider = await get_provider()
+    assert provider.name == "openai_compat"
+
+
+def test_clear_reverts_to_local():
+    os.environ["OPENAI_COMPAT_BASE_URL"] = "http://localhost:20128/v1"
+    set_cloud_override()
+    clear_cloud_override()
+    assert cloud_override_active() is False

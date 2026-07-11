@@ -23,6 +23,36 @@ router = APIRouter(prefix="/system", tags=["system"])
 _startup_time = time.time()
 
 
+class CloudModeBody(BaseModel):
+    on: bool
+
+
+@router.post("/cloud-mode")
+async def cloud_mode(body: CloudModeBody):
+    """Toggle cloud mode — route requests through OmniRoute (free cloud models,
+    zero local strain) instead of the local brain. /cloud on|off drives this."""
+    from app.providers import set_cloud_override, clear_cloud_override, cloud_override_active
+    if body.on:
+        status = set_cloud_override()
+        if status == "not_configured":
+            return {
+                "ok": False,
+                "on": False,
+                "reason": "OmniRoute not connected. Install it (`npm i -g omniroute`, run `omniroute`), "
+                          "connect free providers + generate a key in its dashboard, then set "
+                          "OPENAI_COMPAT_BASE_URL=http://localhost:20128/v1 and OPENAI_COMPAT_API_KEY in .env.",
+            }
+        return {"ok": True, "on": True, "message": "Cloud mode ON — big models via OmniRoute, no local strain."}
+    clear_cloud_override()
+    return {"ok": True, "on": False, "message": "Cloud mode OFF — back to the local private brain (ornith)."}
+
+
+@router.get("/cloud-mode")
+async def cloud_mode_status():
+    from app.providers import cloud_override_active
+    return {"on": cloud_override_active()}
+
+
 @router.get("/status", response_model=SystemStatus)
 async def get_system_status() -> SystemStatus:
     """Get overall system status"""
