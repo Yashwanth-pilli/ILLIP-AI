@@ -200,6 +200,38 @@ if ($envIsNew) {
     Ok ".env set to use $model."
 }
 
+# -- 5b. Optional cloud brain (OmniRoute) — free big models, zero local strain --
+# Powers /cloud mode. Fully optional: ILLIP runs 100% local without it. Needs
+# Node.js. The provider-connect + API-key step is one-time in OmniRoute's own
+# dashboard (user logins — can't be scripted).
+Step "Optional: cloud brain (OmniRoute) for /cloud mode..."
+$node = Has-Command "node"
+if (-not $node) {
+    if ((Has-Command "winget") -and (Ask "Install Node.js? Only needed for the free /cloud brain; say no to stay fully local.")) {
+        winget install --id OpenJS.NodeJS.LTS -e --accept-source-agreements --accept-package-agreements
+        $node = Has-Command "node"
+    }
+}
+if ($node) {
+    $omniCmd = Join-Path $env:APPDATA "npm\omniroute.cmd"
+    if (Test-Path $omniCmd) {
+        Ok "OmniRoute already installed - it auto-starts with 'illip'."
+    } elseif (Ask "Install OmniRoute now? Free cloud-model proxy, ~1.6B free tokens/month, one time.") {
+        Step "Installing OmniRoute - large package, a few minutes..."
+        & npm install -g omniroute --no-fund --no-audit
+        if (Test-Path $omniCmd) {
+            Ok "OmniRoute installed. It auto-starts with 'illip'."
+            Say "  One-time: after starting 'illip', open http://localhost:20128," Gray
+            Say "  connect a free provider + generate a key, add it to .env as" Gray
+            Say "  OPENAI_COMPAT_API_KEY, then use /cloud on in chat." Gray
+        } else {
+            Warn "OmniRoute install did not finish - /cloud stays off until installed. ILLIP still works locally."
+        }
+    }
+} else {
+    Warn "Node.js not installed - /cloud skipped. ILLIP runs fully local without it."
+}
+
 # -- 6. Desktop cat -----------------------------------------------------------
 Step "Putting the ILLIP cat on your desktop..."
 $desktop = [Environment]::GetFolderPath("Desktop")
