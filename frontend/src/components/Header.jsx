@@ -23,10 +23,10 @@ function SafetyBadge({ hwLive }) {
   const pressure = hwLive.pressure || 'low'
   // Map pressure → colour + label. Temps here run ~40-55°C; 85°C is the hard limit.
   const map = {
-    low:      { cls: 'safe',    dot: '🟢', label: 'Safe' },
-    medium:   { cls: 'warm',    dot: '🟡', label: 'Busy' },
-    high:     { cls: 'warm',    dot: '🟡', label: 'Warm' },
-    critical: { cls: 'hot',     dot: '🔴', label: 'Cooling' },
+    low:      { cls: 'safe',    dot: '', label: 'Safe' },
+    medium:   { cls: 'warm',    dot: '', label: 'Busy' },
+    high:     { cls: 'warm',    dot: '', label: 'Warm' },
+    critical: { cls: 'hot',     dot: '', label: 'Cooling' },
   }
   const s = map[pressure] || map.low
   const ramPct = hwLive.ram_percent || 0
@@ -38,7 +38,7 @@ function SafetyBadge({ hwLive }) {
         className="safety-badge warm"
         title={`Your PC's RAM is ${ramPct.toFixed(0)}% full — other apps (browser tabs, etc.) are squeezing ILLIP, so replies get slow. Close some apps to speed it up. GPU is fine: ${temp.toFixed(0)}°C.`}
       >
-        🟡 RAM {ramPct.toFixed(0)}% · close apps
+        RAM {ramPct.toFixed(0)}% · close apps
       </span>
     )
   }
@@ -47,7 +47,7 @@ function SafetyBadge({ hwLive }) {
     : `${s.label} · running on CPU`
   return (
     <span className={`safety-badge ${s.cls}`} title={title}>
-      {s.dot} {temp > 0 ? `${temp.toFixed(0)}°C` : 'CPU'} · {s.label}
+      {temp > 0 ? `${temp.toFixed(0)}°C` : 'CPU'} · {s.label}
     </span>
   )
 }
@@ -99,10 +99,10 @@ export default function Header({
               value={pinnedModel || ''}
               onChange={e => onSwitchModel(e.target.value || null)}
             >
-              <option value="">🤖 Auto</option>
+              <option value="">Auto</option>
               {(modelsData?.models || []).map(m => (
                 <option key={m.name} value={m.name}>
-                  {m.name}{m.is_recommended ? ' ⭐' : ''}{pinnedModel === m.name ? ' 📌' : ''}
+                  {m.name}{m.is_recommended ? ' (recommended)' : ''}{pinnedModel === m.name ? ' (pinned)' : ''}
                 </option>
               ))}
             </select>
@@ -117,37 +117,37 @@ export default function Header({
             onChange={e => onSwitchProject(e.target.value)}
           >
             {projects.map(p => (
-              <option key={p.id} value={p.id}>📁 {p.name}</option>
+              <option key={p.id} value={p.id}>{p.name}</option>
             ))}
-            {!projects.length && <option value="default">📁 Default</option>}
+            {!projects.length && <option value="default">Default</option>}
           </select>
 
           <button className="icon-btn" onClick={onNewProject} title="New space">+</button>
           {activeProject !== 'default' && (
-            <button className="icon-btn" onClick={() => onDeleteProject(activeProject)} title="Delete this space">🗑️</button>
+            <button className="icon-btn" onClick={() => onDeleteProject(activeProject)} title="Delete this space">✕</button>
           )}
-          <button className={`mode-btn refresh-btn`} onClick={onRefresh} title="Clear context">↺ Refresh</button>
-          <button className="mode-btn" onClick={handleLockClick} title="Lock ILLIP with a password / log out — data stays on this PC">🔒 Lock</button>
+          <button className={`mode-btn refresh-btn`} onClick={onRefresh} title="Clear context">Refresh</button>
+          <button className="mode-btn" onClick={handleLockClick} title="Lock ILLIP with a password / log out — data stays on this PC">Lock</button>
           <button
             className={`mode-btn ${autoSpeak ? 'active' : ''}`}
             onClick={onAutoSpeak}
             title="Auto-speak responses"
           >
-            {autoSpeak ? '🔊 Speak' : '🔇 Speak'}
+            Speak
           </button>
           <button
             className={`mode-btn ${chatModes.caveman ? 'active' : ''}`}
             onClick={() => onToggleChatMode && onToggleChatMode('caveman')}
             title="Caveman mode — terse, faster replies on local hardware"
           >
-            🗿 Caveman
+            Caveman
           </button>
           <button
             className={`mode-btn ${chatModes.ponytail ? 'active' : ''}`}
             onClick={() => onToggleChatMode && onToggleChatMode('ponytail')}
             title="Ponytail mode — simplest solution, flags over-engineering"
           >
-            🐴 Ponytail
+            Ponytail
           </button>
         </div>
 
@@ -179,7 +179,7 @@ export default function Header({
 
       {suggestion && (
         <div className="model-suggestion">
-          <span>💡 {modelsData.hardware_summary} → best match: <strong>{modelsData.recommended}</strong> (using {modelsData.active})</span>
+          <span>{modelsData.hardware_summary} → best match: <strong>{modelsData.recommended}</strong> (using {modelsData.active})</span>
           <button className="suggestion-btn" onClick={() => onSwitchModel(modelsData.recommended)}>
             Switch to {modelsData.recommended}
           </button>

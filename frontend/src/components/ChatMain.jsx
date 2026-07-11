@@ -201,10 +201,10 @@ export default function ChatMain({
 
         {/* Mode buttons */}
         <div className="input-controls">
-          <span className="model-badge">🤖 {activeModel || 'Auto'}</span>
-          <button className={`mode-btn ${forceLarge ? 'active' : ''}`} onClick={onToggleForceLarge}>⚡ Force Large</button>
-          <button className={`mode-btn ${forceSearch ? 'active' : ''}`} onClick={onToggleForceSearch}>🔍 Search</button>
-          <button className="mode-btn refresh-btn" onClick={() => onChat('!refresh')}>↺</button>
+          <span className="model-badge">{activeModel || 'Auto'}</span>
+          <button className={`mode-btn ${forceLarge ? 'active' : ''}`} onClick={onToggleForceLarge}>Force Large</button>
+          <button className={`mode-btn ${forceSearch ? 'active' : ''}`} onClick={onToggleForceSearch}>Search</button>
+          <button className="mode-btn refresh-btn" onClick={() => onChat('!refresh')} title="Clear context">↺</button>
         </div>
 
         {/* Action buttons */}
@@ -213,23 +213,23 @@ export default function ChatMain({
             className="action-btn research"
             onClick={() => onStartResearch(inputValue.trim())}
             disabled={isResearching}
-          >🔍 Research</button>
+          >Research</button>
           <button
             className="action-btn browser"
             onClick={onOpenBrowser}
-          >🌐 Browser</button>
+          >Browser</button>
           <button
             className="action-btn imggen"
             onClick={onOpenImage}
-          >🎨 Image</button>
+          >Image</button>
           <button
             className="action-btn vidgen"
             onClick={onOpenVideo}
-          >🎬 Video</button>
+          >Video</button>
           <button
             className="action-btn game"
             onClick={onOpenGames}
-          >🎮 Games</button>
+          >Games</button>
           <button
             className="action-btn team"
             onClick={() => {
@@ -242,7 +242,7 @@ export default function ChatMain({
               }
             }}
             title="Type what to build, then hit Team to run it through the agent crew"
-          >🏢 Team</button>
+          >Team</button>
         </div>
 
         {/* Image preview */}
