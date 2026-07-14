@@ -1,5 +1,5 @@
 """
-Doctor — one-shot system diagnostics (like Claude Code's /doctor).
+Doctor — one-shot system diagnostics (like a coding agent's /doctor).
 
 Runs a battery of checks and returns actionable results: each check reports
 ok / warn / fail plus a one-line fix. Read-only; never changes system state.

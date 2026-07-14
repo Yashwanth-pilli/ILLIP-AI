@@ -1,6 +1,6 @@
 """
 ILLIP terminal REPL — an interactive coding agent in your terminal, like a local
-Claude Code. Type `illip` to chat; it streams replies live, runs tools (read
+developer assistant. Type `illip` to chat; it streams replies live, runs tools (read
 files, run shell/python) in the folder you launched from, and remembers the
 conversation so `illip --continue` picks up where you left off.
 

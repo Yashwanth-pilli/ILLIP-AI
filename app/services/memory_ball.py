@@ -1,7 +1,7 @@
 """
 Memory Ball — structured, named, typed long-term memory for ILLIP AI.
 
-Works exactly like Claude Code's memory system:
+Works exactly like a coding agent's memory system:
 - Every memory = a named .md file with frontmatter + body
 - Types: user, project, feedback, reference, fact
 - MEMORY_INDEX.md = searchable index of all memories

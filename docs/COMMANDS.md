@@ -12,7 +12,7 @@ Type these in **any** terminal window (cmd / PowerShell). They work from any fol
 |---|---|---|
 | `illip` | Starts the server (if not running) and opens the web app in your browser | Normal daily use |
 | `illip repair` | **Emergency fix.** Kills a stuck server, restarts Ollama, smoke-tests the code, offers git rollback to the last CI-tested version if code is broken, reinstalls missing dependencies, restarts everything | ILLIP is frozen, won't start, or broke after a change. Works even when the app itself is dead |
-| `illip code` | Opens a terminal coding agent in a **new window**, working in your current folder (like a local Claude Code) | Serious coding/build work in a specific project folder |
+| `illip code` | Opens a terminal coding agent in a **new window**, working in your current folder (like a local coding agent) | Serious coding/build work in a specific project folder |
 | `illip code --continue` | Same, but resumes your last terminal conversation | Continue yesterday's coding session |
 | `illip do "make X"` | Agent crew builds task X **in the current folder** — plans, writes files, verifies | Quick one-shot build where you are |
 | `illip build "make X" --dir <folder>` | Same, but in a specific folder | Build somewhere else |

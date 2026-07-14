@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-ILLIP AI terminal CLI — works like Claude Code but for your local ILLIP instance.
+ILLIP AI terminal CLI — works like a local coding agent for your ILLIP instance.
 
 Usage:
   illip "your question here"

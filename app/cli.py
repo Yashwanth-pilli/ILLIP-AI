@@ -27,7 +27,7 @@ def main():
         """ILLIP AI — your AI company, in your device.
 
         `illip` opens the web app. `illip code` drops into a terminal coding
-        agent for serious project work (like a local Claude Code).
+        agent for serious project work (like a local coding agent).
         """
         pass
 

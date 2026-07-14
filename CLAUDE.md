@@ -1,4 +1,4 @@
-# ILLIP AI — Claude Code Instructions
+# ILLIP AI — Yashwanth Dharan Tej Pilli Instructions
 
 ## Session Startup (REQUIRED)
 

@@ -202,7 +202,7 @@ prevents strain on either. Forcing 50/50 would slow responses and heat the CPU.
 
 - [x] Rebrand: "ILLIP AI" → **ILLIP** everywhere (header, title, welcome, placeholder, system prompt).
 - [x] Rewrote system prompt: funny/quirky/unfiltered personality, hard rule to never say
-      "AI assistant", banned corporate voice. Fixed false "powered by Anthropic Claude" line.
+      "AI assistant", banned corporate voice. Fixed false provider-branded attribution line.
 - [x] **Root-caused the boring persona:** vector memory had 89 old chat turns ("I am an AI…",
       "How can I assist you today?") that were retrieved and fed back, training ILLIP to stay
       boring. Cleared FTS + Qdrant chat-memory (test junk). Persona now lands:
@@ -218,7 +218,7 @@ prevents strain on either. Forcing 50/50 would slow responses and heat the CPU.
 - **Agents actually executing with live thinking:** agents exist + run individually via
   `/agents/{type}/execute`, but chat does NOT orchestrate the Planner→Builder→… pipeline
   with streamed steps. Real build. Biggest-value next task.
-- **Terminal (like Claude Code):** `code_executor` skill exists; a full terminal panel that
+- **Terminal (like a coding agent):** `code_executor` skill exists; a full terminal panel that
   runs shell commands is doable but needs a safety/confirm layer. Medium build.
 - **Fully uncensored:** personality is now unfiltered/non-preachy (prompt-level). Genuine
   hard-harm refusals stay. A truly uncensored *model* would mean swapping to an abliterated
