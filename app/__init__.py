@@ -4,4 +4,4 @@ MVP Foundation for self-improving local AI agents
 """
 
 __version__ = "3.1.0"
-__author__ = "ILLIP AI"
+__author__ = "Yashwanth Dharan Tej Pilli"
