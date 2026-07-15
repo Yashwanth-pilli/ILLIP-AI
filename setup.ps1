@@ -200,7 +200,10 @@ if ($haveModel) {
 
 # Point ILLIP at the picked model - only on a fresh .env (never touch owner settings).
 if ($envIsNew) {
-    (Get-Content $envPath) -replace '^OLLAMA_MODEL=.*', "OLLAMA_MODEL=$model" -replace '^MODEL_PROVIDER=.*', 'MODEL_PROVIDER=ollama' | Set-Content $envPath
+    $envText = Get-Content $envPath -Raw
+    $envText = $envText -replace '(?m)^OLLAMA_MODEL=.*', "OLLAMA_MODEL=$model"
+    $envText = $envText -replace '(?m)^MODEL_PROVIDER=.*', 'MODEL_PROVIDER=ollama'
+    [System.IO.File]::WriteAllText($envPath, $envText, [System.Text.UTF8Encoding]::new($false))
     Ok ".env set to use $model."
 }
 
@@ -267,11 +270,11 @@ if ($node) {
             Say ""
             $key = Read-Host "Paste your OmniRoute API key here (or press Enter to skip)"
             if ($key.Trim().Length -gt 0) {
-                $lines = Get-Content $envPath
-                $lines = $lines -replace '^OPENAI_COMPAT_BASE_URL=.*', 'OPENAI_COMPAT_BASE_URL=http://localhost:20128/v1'
-                $lines = $lines -replace '^OPENAI_COMPAT_API_KEY=.*',  "OPENAI_COMPAT_API_KEY=$($key.Trim())"
-                $lines = $lines -replace '^OPENAI_COMPAT_MODEL=.*',    'OPENAI_COMPAT_MODEL=auto'
-                $lines | Set-Content $envPath
+                $envText = Get-Content $envPath -Raw
+                $envText = $envText -replace '(?m)^OPENAI_COMPAT_BASE_URL=.*', 'OPENAI_COMPAT_BASE_URL=http://localhost:20128/v1'
+                $envText = $envText -replace '(?m)^OPENAI_COMPAT_API_KEY=.*',  "OPENAI_COMPAT_API_KEY=$($key.Trim())"
+                $envText = $envText -replace '(?m)^OPENAI_COMPAT_MODEL=.*',    'OPENAI_COMPAT_MODEL=auto'
+                [System.IO.File]::WriteAllText($envPath, $envText, [System.Text.UTF8Encoding]::new($false))
                 Ok "Cloud brain connected. In chat: /cloud on for big cloud models, /cloud off for local."
             } else {
                 Warn "No key pasted - /cloud stays off. Add it to .env later as OPENAI_COMPAT_API_KEY."
