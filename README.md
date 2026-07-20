@@ -21,7 +21,7 @@ ILLIP AI is a portable, private, self-improving AI system that runs on your own 
 
 ## Quick Start
 
-**Easiest:** download the zip, extract it, and **double-click `setup.bat`**. It finds or installs Python and Ollama (asking your permission first), installs everything, picks the right AI model for your hardware, and puts a small cat 🐱 on your desktop. Click the cat — ILLIP starts and opens in your browser. Anything it can't do automatically, it explains step by step.
+**Easiest:** download the zip, extract it, and **double-click `run.bat`**. First time, it finds or installs Python and Ollama (asking your permission first), installs everything, and picks the right AI model for your hardware. Every time (first run included), it starts ILLIP and opens it in your browser. Anything it can't do automatically, it explains step by step — and if a dependency fails to install, it auto-retries with flexible versions instead of stopping.
 
 **Manual (developers):**
 

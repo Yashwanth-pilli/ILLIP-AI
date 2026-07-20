@@ -16,14 +16,14 @@ No cloud account is required for the default mock provider.
 
 ## First Run (easiest — no terminal needed)
 
-Double-click **`setup.bat`** in the project root. It will:
+Double-click **`run.bat`** in the project root. First time, it will:
 
 1. Find or install Python (asks your permission first)
-2. Install all dependencies
+2. Install all dependencies — if a pinned version fails on your machine, it auto-retries with flexible versions instead of stopping
 3. Find or install Ollama, look at your hardware, and download the right AI model (asks first — it's a few GB)
-4. Put a small cat 🐱 on your desktop and screen
+4. Start ILLIP and open it in your browser
 
-**Click the cat to start ILLIP.** Drag it anywhere; right-click it to quit.
+Every time after, **double-clicking `run.bat` just starts ILLIP** and opens it in your browser — no reinstall.
 If setup can't do something automatically, it explains exactly what to do, step by step.
 
 ## First Run (manual, for developers)

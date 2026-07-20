@@ -94,7 +94,7 @@ $venvPython = Join-Path $venvPath "Scripts\python.exe"
 if (-not (Test-Path $venvPython)) {
     Step "Creating Python virtual environment (.venv)..."
     if ($python -eq "py -3") { & py -3 -m venv .venv } else { & $python -m venv .venv }
-    if (-not (Test-Path $venvPython)) { Fail "Could not create .venv. Re-run setup.bat; if it fails again, delete the .venv folder first."; Exit 1 }
+    if (-not (Test-Path $venvPython)) { Fail "Could not create .venv. Re-run run.bat; if it fails again, delete the .venv folder first."; Exit 1 }
     Ok "Virtual environment created."
 } else {
     Ok "Virtual environment already exists."
@@ -103,13 +103,19 @@ if (-not (Test-Path $venvPython)) {
 Step "Installing dependencies (first run downloads a few hundred MB - be patient)..."
 & $venvPython -m pip install --upgrade pip --quiet
 # Prefer the lock file (exact known-good versions) so a breaking release of a
-# dependency can't break fresh installs; requirements.txt is the fallback.
+# dependency can't break fresh installs; requirements.txt (loose bounds) is the
+# automatic fallback if a pinned version can't install on this machine (e.g. no
+# prebuilt wheel for this Python version) - so a stale pin never hard-stops setup.
 $reqFile = Join-Path $Root "requirements.lock"
 if (-not (Test-Path $reqFile)) { $reqFile = Join-Path $Root "requirements.txt" }
 & $venvPython -m pip install -r $reqFile
 if ($LASTEXITCODE -ne 0) {
-    Fail "Some dependencies failed to install."
-    Say "  Fix: check your internet connection, then double-click setup.bat again." Yellow
+    Warn "A pinned package failed to install - auto-fixing with flexible versions..."
+    & $venvPython -m pip install -r (Join-Path $Root "requirements.txt")
+}
+if ($LASTEXITCODE -ne 0) {
+    Fail "Some dependencies still failed to install."
+    Say "  Fix: check your internet connection, then double-click run.bat again." Yellow
     Say "  Setup resumes where it left off - nothing is lost." Yellow
     Exit 1
 }
@@ -321,7 +327,7 @@ if ($wantsShortcut) {
         Ok "Added 'illip' to PATH. Open a NEW terminal, then type: illip"
     }
 } else {
-    Warn "Skipped. Start ILLIP any time with: .\scripts\run_backend.ps1"
+    Warn "Skipped. Start ILLIP any time by double-clicking run.bat."
 }
 
 # -- Done ---------------------------------------------------------------------
@@ -330,20 +336,8 @@ Say "==========================================" Green
 Say "        ILLIP setup is complete!          " Green
 Say "==========================================" Green
 Say ""
-if ($wantsShortcut) {
-    Say "  A little cat now lives on your desktop." White
-    Say "  Click the cat -> ILLIP starts and opens in your browser." White
-    Say "  Drag the cat anywhere you like. Right-click it to quit." White
-} else {
-    Say "  Start ILLIP any time with:  .\scripts\run_backend.ps1" White
-    Say "  Then open http://127.0.0.1:8000 in your browser." White
-}
+Say "  Starting ILLIP now..." White
 Say ""
 Say "  Optional (for the browser agent): open a terminal and run:" Gray
 Say "    .venv\Scripts\playwright install chromium" Gray
 Say ""
-
-if (Ask "Start ILLIP now?") {
-    Start-Process (Join-Path $venvPath "Scripts\pythonw.exe") ('"' + (Join-Path $Root "scripts\illip_cat.pyw") + '"') -WorkingDirectory $Root
-    Ok "The cat is on your screen - click it!"
-}
